@@ -293,6 +293,13 @@ public class AniDashboardActivity extends Activity {
                         host.manualAddress=new ComputerDetails.AddressTuple(address,port);
                         added=manager.addComputerBlocking(host);
                         if(!added) throw new Exception("MOONLIGHT_HOST_POLL_FAILED");
+                        // Keep only the host selected by the server. Preserve its pinned
+                        // certificate so reconnecting to this PC does not require re-pairing.
+                        for (ComputerDetails stored : manager.getAllComputers()) {
+                            if (stored.uuid != null && !stored.uuid.equals(host.uuid)) {
+                                manager.removeComputer(stored);
+                            }
+                        }
                         runOnUiThread(()->{
                             try { unbindService(connection); } catch(Exception ignored) {}
                             messageText.setText("PC terhubung. Ketuk PC yang dipilih untuk memulai pairing otomatis.");
