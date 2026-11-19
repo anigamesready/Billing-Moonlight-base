@@ -154,10 +154,10 @@ public sealed class HostAgentWorker : BackgroundService
             var until = DateTimeOffset.UtcNow.AddSeconds(90);
             while (DateTimeOffset.UtcNow < until && !stoppingToken.IsCancellationRequested)
             {
-                var pending = await SunshineGet("api/pairings/pending", stoppingToken);
-                if (pending.ValueKind == JsonValueKind.Array)
+                var pending = await SunshineGet("api/pin", stoppingToken);
+                if (pending.TryGetProperty("pairings", out var pairings) && pairings.ValueKind == JsonValueKind.Array)
                 {
-                    foreach (var item in pending.EnumerateArray())
+                    foreach (var item in pairings.EnumerateArray())
                     {
                         var pendingName = GetString(item, "name");
                         if (!string.Equals(pendingName, clientName, StringComparison.Ordinal))
