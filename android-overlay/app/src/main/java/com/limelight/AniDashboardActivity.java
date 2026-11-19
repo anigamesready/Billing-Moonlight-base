@@ -292,12 +292,8 @@ public class AniDashboardActivity extends Activity {
                         if(!added) throw new Exception("MOONLIGHT_HOST_POLL_FAILED");
                         runOnUiThread(()->{
                             try { unbindService(connection); } catch(Exception ignored) {}
-                            messageText.setText("PC terhubung. Memuat daftar game...");
-                            Intent appIntent = new Intent(AniDashboardActivity.this, AppView.class);
-                            appIntent.putExtra(AppView.NAME_EXTRA, host.name);
-                            appIntent.putExtra(AppView.UUID_EXTRA, host.uuid);
-                            appIntent.putExtra(AppView.NEW_PAIR_EXTRA, true);
-                            startActivity(appIntent);
+                            messageText.setText("PC terhubung. Ketuk PC yang dipilih untuk memulai pairing otomatis.");
+                            startActivity(new Intent(AniDashboardActivity.this, PcView.class));
                         });
                     } catch(Exception e) {
                         try { AniRemoteApi.stopSession(token,sessionId,"host_unreachable"); } catch(Exception ignored) {}
