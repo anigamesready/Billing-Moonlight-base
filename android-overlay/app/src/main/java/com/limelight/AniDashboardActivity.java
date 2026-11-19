@@ -291,15 +291,19 @@ public class AniDashboardActivity extends Activity {
                         added=manager.addComputerBlocking(host);
                         if(!added) throw new Exception("MOONLIGHT_HOST_POLL_FAILED");
                         runOnUiThread(()->{
-                            unbindService(this);
-                            messageText.setText("PC siap. Pilih PC untuk membuka daftar game.");
-                            startActivity(new Intent(AniDashboardActivity.this,PcView.class));
+                            try { unbindService(connection); } catch(Exception ignored) {}
+                            messageText.setText("PC terhubung. Memuat daftar game...");
+                            Intent appIntent = new Intent(AniDashboardActivity.this, AppView.class);
+                            appIntent.putExtra(AppView.NAME_EXTRA, host.name);
+                            appIntent.putExtra(AppView.UUID_EXTRA, host.uuid);
+                            appIntent.putExtra(AppView.NEW_PAIR_EXTRA, true);
+                            startActivity(appIntent);
                         });
                     } catch(Exception e) {
                         try { AniRemoteApi.stopSession(token,sessionId,"host_unreachable"); } catch(Exception ignored) {}
                         AniSecurePrefs.clearActiveSession(AniDashboardActivity.this);
                         runOnUiThread(()->{
-                            try { unbindService(this); } catch(Exception ignored) {}
+                            try { unbindService(connection); } catch(Exception ignored) {}
                             messageText.setText("PC tidak dapat dijangkau melalui rute yang didaftarkan. Sesi dibatalkan.");
                         });
                     }
