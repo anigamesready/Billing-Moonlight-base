@@ -139,11 +139,48 @@ async function handler(req: Request): Promise<Response> {
       return json(200,await rpc("remote_play_mark_active",{p_device_token:token,p_session_id:sessionId}));
     }
 
-    if (path === "host/session/heartbeat") {
+    if (path === "session/heartbeat") {
+      const token=String(body.clientToken||"");
+      const sessionId=String(body.sessionId||"");
+      if (token.length<64 || !isUuid(sessionId)) return json(400,{ok:false,error:"INVALID_REQUEST"});
+      return json(200,await rpc("remote_play_client_heartbeat",{p_client_token:token,p_session_id:sessionId}));
+    }
+
+    if (path === "host/session/heartbeat" || path === "host/watchdog") {
+      const token=String(body.deviceToken||"");
+      if (token.length<32) return json(401,{ok:false,error:"INVALID_DEVICE_TOKEN"});
+      return json(200,await rpc("remote_play_host_watchdog",{p_device_token:token}));
+    }
+
+    if (path === "pairing/prepare") {
+      const token=String(body.clientToken||"");
+      const sessionId=String(body.sessionId||"");
+      const pin=String(body.pin||"");
+      const clientName=String(body.clientName||"");
+      if (token.length<64 || !isUuid(sessionId) || !/^[0-9]{4}$/.test(pin) || clientName.length<4) {
+        return json(400,{ok:false,error:"INVALID_REQUEST"});
+      }
+      return json(200,await rpc("remote_play_pairing_prepare",{
+        p_client_token:token,p_session_id:sessionId,p_pin:pin,p_client_name:clientName.slice(0,120)
+      }));
+    }
+
+    if (path === "host/pairing/poll") {
       const token=String(body.deviceToken||"");
       const sessionId=String(body.sessionId||"");
       if (token.length<32 || !isUuid(sessionId)) return json(400,{ok:false,error:"INVALID_REQUEST"});
-      return json(200,await rpc("remote_play_heartbeat_session",{p_device_token:token,p_session_id:sessionId}));
+      return json(200,await rpc("remote_play_pairing_poll",{p_device_token:token,p_session_id:sessionId}));
+    }
+
+    if (path === "host/pairing/complete") {
+      const token=String(body.deviceToken||"");
+      const sessionId=String(body.sessionId||"");
+      const challengeId=String(body.challengeId||"");
+      if (token.length<32 || !isUuid(sessionId) || !isUuid(challengeId)) return json(400,{ok:false,error:"INVALID_REQUEST"});
+      return json(200,await rpc("remote_play_pairing_complete",{
+        p_device_token:token,p_session_id:sessionId,p_challenge_id:challengeId,
+        p_success:body.success===true,p_sunshine_pairing_id:String(body.sunshinePairingId||"")
+      }));
     }
 
     if (path === "session/stop") {
@@ -164,12 +201,6 @@ async function handler(req: Request): Promise<Response> {
       return json(200,await rpc("remote_play_stop_host_session",{
         p_device_token:token,p_session_id:sessionId,p_reason:reason
       }));
-    }
-
-    if (path === "host/watchdog") {
-      const token=String(body.deviceToken||"");
-      if (token.length<32) return json(401,{ok:false,error:"INVALID_DEVICE_TOKEN"});
-      return json(200,await rpc("remote_play_host_watchdog",{p_device_token:token}));
     }
 
     if (path === "topup/info") {
@@ -202,6 +233,9 @@ async function handler(req: Request): Promise<Response> {
       REMOTE_SESSION_CONFLICT:409,
       REMOTE_SESSION_NOT_FOUND:404,
       REMOTE_SESSION_NOT_ACTIVE:409,
+      REMOTE_PAIRING_PIN_INVALID:400,
+      REMOTE_PAIRING_NAME_INVALID:400,
+      REMOTE_PAIRING_CHALLENGE_NOT_FOUND:404,
       INVALID_DEVICE_TOKEN:401,
       REMOTE_PLAY_SERVICE_UNAVAILABLE:503
     };
