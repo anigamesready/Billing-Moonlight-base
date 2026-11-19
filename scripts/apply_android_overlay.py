@@ -66,6 +66,10 @@ def main() -> None:
                             'resValue "string", "app_label", "Ani Moonlight"', 1)
     gradle = gradle.replace('resValue "string", "app_label_root", "Moonlight (Root)"',
                             'resValue "string", "app_label_root", "Ani Moonlight (Root)"', 1)
+    gradle = gradle.replace('resValue "string", "app_label", "Moonlight (Debug)"',
+                            'resValue "string", "app_label", "Ani Moonlight (Beta)"')
+    gradle = gradle.replace('resValue "string", "app_label_root", "Moonlight (Root Debug)"',
+                            'resValue "string", "app_label_root", "Ani Moonlight (Root Beta)"')
     write(gradle_path, gradle)
 
     # Give each installation its own certificate CN, which the Host Agent matches
@@ -104,6 +108,18 @@ def main() -> None:
         '                discoveryBinder.startDiscovery(MDNS_QUERY_PERIOD_MS);\n'
         '            }',
         "disable local mDNS in Ani mode"
+    )
+    write(svc_path, svc)
+
+    # Expose the native client database so the selected host can be isolated.
+    svc = replace_once(
+        svc,
+        '        public ComputerDetails getComputer(String uuid) {',
+        '        public List<ComputerDetails> getAllComputers() {\n'
+        '            return dbManager.getAllComputers();\n'
+        '        }\n\n'
+        '        public ComputerDetails getComputer(String uuid) {',
+        "expose stored Moonlight hosts"
     )
     write(svc_path, svc)
 
@@ -235,6 +251,7 @@ def main() -> None:
         '            android:exported="false"\n'
         '            android:resizeableActivity="true" />\n'
     )
+    pc_block = pc_block.replace('android:exported="true"', 'android:exported="false"', 1)
     manifest = manifest[:pc_start] + new_activities + pc_block + manifest[pc_end:]
     write(manifest_path, manifest)
 
