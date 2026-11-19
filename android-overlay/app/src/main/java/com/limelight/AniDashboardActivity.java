@@ -43,6 +43,9 @@ public class AniDashboardActivity extends Activity {
         currentCode=getIntent().getStringExtra("rental_code");
         if(currentCode==null || currentCode.isEmpty()) currentCode=AniSecurePrefs.getRentalCode(this);
         AniSecurePrefs.setRemoteMode(this,true);
+        // A fresh dashboard means the previous streaming Activity was destroyed or force-stopped.
+        // Ask the backend to close any persisted lease before displaying available PCs.
+        AniSessionController.recoverBeforeDashboard(this);
         render();
         refresh();
     }
