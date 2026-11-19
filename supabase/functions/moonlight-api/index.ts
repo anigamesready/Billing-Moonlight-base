@@ -139,6 +139,13 @@ async function handler(req: Request): Promise<Response> {
       return json(200,await rpc("remote_play_mark_active",{p_device_token:token,p_session_id:sessionId}));
     }
 
+    if (path === "session/active") {
+      const token=String(body.clientToken||"");
+      const sessionId=String(body.sessionId||"");
+      if (token.length<64 || !isUuid(sessionId)) return json(400,{ok:false,error:"INVALID_REQUEST"});
+      return json(200,await rpc("remote_play_client_mark_active",{p_client_token:token,p_session_id:sessionId}));
+    }
+
     if (path === "session/heartbeat") {
       const token=String(body.clientToken||"");
       const sessionId=String(body.sessionId||"");
@@ -201,6 +208,12 @@ async function handler(req: Request): Promise<Response> {
       return json(200,await rpc("remote_play_stop_host_session",{
         p_device_token:token,p_session_id:sessionId,p_reason:reason
       }));
+    }
+
+    if (path === "host/sessions/list") {
+      const token=String(body.deviceToken||"");
+      if (token.length<32) return json(401,{ok:false,error:"INVALID_DEVICE_TOKEN"});
+      return json(200,await rpc("remote_play_host_sessions",{p_device_token:token}));
     }
 
     if (path === "topup/info") {
