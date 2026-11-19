@@ -1,0 +1,130 @@
+name: Build Ani Games Ready Remote Play
+
+on:
+  push:
+    branches:
+      - feature/ani-remote-play-v1
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  android:
+    name: Build Ani Moonlight Android (non-root)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Ani integration source
+        uses: actions/checkout@v4
+        with:
+          ref: feature/ani-remote-play-v1
+
+      - name: Checkout official Moonlight Android v12.2
+        uses: actions/checkout@v4
+        with:
+          repository: moonlight-stream/moonlight-android
+          ref: v12.2
+          path: upstream
+          submodules: recursive
+          fetch-depth: 0
+
+      - name: Set up Java 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install Android platform and pinned NDK
+        shell: bash
+        run: |
+          yes | sdkmanager --licenses >/dev/null
+          sdkmanager \
+            "platform-tools" \
+            "platforms;android-37" \
+            "build-tools;36.0.0" \
+            "ndk;29.0.14206865"
+
+      - name: Validate and apply Ani overlay
+        shell: bash
+        run: |
+          python3 -m py_compile scripts/apply_android_overlay.py
+          python3 scripts/apply_android_overlay.py --upstream upstream --overlay android-overlay
+          test -f upstream/app/src/main/java/com/limelight/AniLoginActivity.java
+          test -f upstream/app/src/main/java/com/limelight/AniDashboardActivity.java
+          test -f upstream/app/src/main/java/com/limelight/AniSessionController.java
+          python3 - <<'PY'
+          import xml.etree.ElementTree as ET
+          root = ET.parse("upstream/app/src/main/AndroidManifest.xml").getroot()
+          ns = "{http://schemas.android.com/apk/res/android}"
+          activities = {a.get(ns+"name"): a for a in root.findall("./application/activity")}
+          assert ".AniLoginActivity" in activities
+          assert any(i.find("category[@"+ns+"name='android.intent.category.LAUNCHER']") is not None
+                     for i in activities[".AniLoginActivity"].findall("intent-filter"))
+          assert activities[".PcView"].get(ns+"exported") == "false"
+          assert not any(i.find("category[@"+ns+"name='android.intent.category.LAUNCHER']") is not None
+                         for i in activities[".PcView"].findall("intent-filter"))
+          PY
+
+      - name: Build Android APK
+        working-directory: upstream
+        shell: bash
+        run: |
+          chmod +x ./gradlew
+          ./gradlew --no-daemon --stacktrace clean :app:assembleNonRootDebug
+
+      - name: Verify Android APK package
+        shell: bash
+        run: |
+          APK="$(find upstream/app/build/outputs/apk/nonRoot/debug -maxdepth 1 -name '*.apk' -print -quit)"
+          test -n "$APK"
+          mkdir -p dist/android
+          cp "$APK" dist/android/Ani-Moonlight-Android-Beta.apk
+          aapt dump badging dist/android/Ani-Moonlight-Android-Beta.apk | grep "package: name='id.anigamesready.moonlight.debug'"
+          sha256sum dist/android/Ani-Moonlight-Android-Beta.apk | tee dist/android/SHA256SUMS.txt
+
+      - name: Upload Android APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: ani-moonlight-android-beta
+          path: dist/android/*
+          if-no-files-found: error
+          retention-days: 30
+
+  windows-host-agent:
+    name: Build Ani Remote Windows Host Agent
+    runs-on: windows-latest
+    steps:
+      - name: Checkout Ani integration source
+        uses: actions/checkout@v4
+        with:
+          ref: feature/ani-remote-play-v1
+
+      - name: Set up .NET 8
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Build Windows Host Agent
+        shell: pwsh
+        run: dotnet publish .\host-agent\AniGamesReady.HostAgent.csproj --configuration Release --runtime win-x64 --self-contained true --output .\dist\host-agent
+
+      - name: Assemble Host Agent package
+        shell: pwsh
+        run: |
+          Copy-Item .\host-agent\install-host-agent.ps1 .\dist\host-agent\
+          Copy-Item .\host-agent\README.md .\dist\host-agent\
+          Compress-Archive -Path .\dist\host-agent\* -DestinationPath .\dist\Ani-Games-Ready-Host-Agent-win-x64.zip -Force
+          Get-FileHash .\dist\Ani-Games-Ready-Host-Agent-win-x64.zip -Algorithm SHA256 | Format-List | Out-File .\dist\Host-Agent-SHA256.txt
+
+      - name: Upload Windows Host Agent
+        uses: actions/upload-artifact@v4
+        with:
+          name: ani-games-ready-host-agent-win-x64
+          path: |
+            dist/Ani-Games-Ready-Host-Agent-win-x64.zip
+            dist/Host-Agent-SHA256.txt
+          if-no-files-found: error
+          retention-days: 30
