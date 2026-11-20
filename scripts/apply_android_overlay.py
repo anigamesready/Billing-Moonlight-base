@@ -62,13 +62,13 @@ def main() -> None:
             raise RuntimeError("DB_ANDROID_API_BASE_URL must be the existing stable DB Android HTTPS gateway")
     gradle = gradle.replace(
         "android {",
-        'def dbAndroidApiBaseUrl = (project.findProperty("dbAndroidApiBaseUrl") ?: System.getenv("DB_ANDROID_API_BASE_URL") ?: "").toString()\\n\\nandroid {',
+        'def dbAndroidApiBaseUrl = (project.findProperty("dbAndroidApiBaseUrl") ?: System.getenv("DB_ANDROID_API_BASE_URL") ?: "").toString()\n\nandroid {',
         1
     )
     api_field = '            buildConfigField "String", "DB_ANDROID_API_BASE_URL", groovy.json.JsonOutput.toJson(dbAndroidApiBaseUrl)'
     gradle, count = re.subn(
-        r'(nonRoot\\s*\\{[\\s\\S]*?buildConfigField "boolean", "ROOT_BUILD", "false"\\s*\\n)',
-        lambda m: m.group(1) + api_field + "\\n",
+        r'(nonRoot\s*\{[\s\S]*?buildConfigField "boolean", "ROOT_BUILD", "false"\s*\n)',
+        lambda m: m.group(1) + api_field + "\n",
         gradle, count=1
     )
     if count != 1:
@@ -104,8 +104,8 @@ def main() -> None:
     crypto_path = java_dst / "binding/crypto/AndroidCryptoProvider.java"
     crypto = read(crypto_path)
     if "import com.limelight.AniSecurePrefs;" not in crypto:
-        crypto = crypto.replace("import com.limelight.LimeLog;\\n",
-                                "import com.limelight.LimeLog;\\nimport com.limelight.AniSecurePrefs;\\n", 1)
+        crypto = crypto.replace("import com.limelight.LimeLog;\n",
+                                "import com.limelight.LimeLog;\nimport com.limelight.AniSecurePrefs;\n", 1)
     crypto = replace_once(
         crypto,
         '    private final File certFile;\n    private final File keyFile;\n',
