@@ -58,9 +58,14 @@ for token in ("remote_play_host_enroll", "remote_play_host_heartbeat",
 if "127.0.0.1" not in config or "47990" not in config:
     raise SystemExit("Sunshine API must stay bound to local loopback.")
 for token in ("NormalizePeerAddress", 'GetString(item, "address")',
-              'GetString(item, "name")', "SunshinePendingPairings"):
+              'GetString(item, "name")', "SunshinePendingPairings",
+              'GetString(challenge, "expected_client_address")',
+              "IsApprovedOverlayAddress(expectedClientAddress)",
+              "string.Equals(address, expectedClientAddress"):
     if token not in worker:
-        raise SystemExit("Sunshine pairing is not bound to the server-approved peer address: " + token)
+        raise SystemExit("Sunshine pairing is not bound to the exact DB-approved peer address: " + token)
+if "IsApprovedOverlayAddress" not in config:
+    raise SystemExit("Host Agent approved overlay address validator is missing.")
 if "ProtectedData.Protect" not in config or "HostTokenProtected" not in config:
     raise SystemExit("Host Agent token must be protected using Windows DPAPI.")
 for token in ("ResolveMediaAddress()", "IsCloudflareMeshAddress", "100.96.0.0/12",
