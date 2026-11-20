@@ -62,7 +62,7 @@ public sealed class HostAgentConfig
         }
 
         if (!System.Net.IPAddress.TryParse(config.MediaAddress, out var mediaIp) ||
-            !(mediaIp.IsIPv6 ? (mediaIp.GetAddressBytes()[0] & 0xfe) == 0xfc :
+            !(mediaIp.AddressFamily == AddressFamily.InterNetworkV6 ? (mediaIp.GetAddressBytes()[0] & 0xfe) == 0xfc :
                 mediaIp.GetAddressBytes()[0] == 10 ||
                 (mediaIp.GetAddressBytes()[0] == 172 && mediaIp.GetAddressBytes()[1] >= 16 && mediaIp.GetAddressBytes()[1] <= 31) ||
                 (mediaIp.GetAddressBytes()[0] == 192 && mediaIp.GetAddressBytes()[1] == 168)))
