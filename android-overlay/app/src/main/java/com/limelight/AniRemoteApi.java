@@ -233,7 +233,7 @@ public final class AniRemoteApi {
     }
 
     public static JSONObject topupInfo(String clientToken) throws Exception {
-        return topupInfo(null);
+        return topupInfo((Context) null);
     }
 
     public static JSONObject logout(String clientToken) throws Exception {
