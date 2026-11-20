@@ -4,9 +4,9 @@ Status: **proposed, not implemented**. The contract deliberately uses the existi
 
 ## Existing verified API surface
 
-Source: `anigamesready/PC-Billing` commit `d86e7ecfa82d7af29bb53d067a316984b1fef69b`.
+Latest DB Android source reviewed: `anigamesready/PC-Billing`, branch `feature/db-android-stop-pause-policy-20261118`, commit `38a75ad85adf60a96a82cd1e7050568119f66a18`.
 
-The existing server accepts `POST /rest/v1/rpc/<allowlisted-name>`, `POST /device/*`, `GET /health`, and the supported Auth compatibility routes. RPC calls are resolved from a Node-side allowlist to typed PostgreSQL routines. The DB Android runtime role has execution rights for API functions only; it does not receive direct business-table read/write privileges.
+The existing server accepts `POST /rest/v1/rpc/<allowlisted-name>`, `POST /device/*`, `GET /health`, and supported Auth compatibility routes. RPC calls are resolved from a Node-side allowlist to typed PostgreSQL routines. The DB Android runtime role has execution rights for API functions only; it does not receive direct business-table read/write privileges. Migration `012_billing_stop_pause_policy.sql` belongs to the existing Billing Stop/Pause feature and must be preserved as-is.
 
 The current server has no `remote_play` schema, customer Remote Play authentication, host Remote Play authentication, session lease API, or media-route exchange. No existing endpoint should be repurposed for these duties.
 
