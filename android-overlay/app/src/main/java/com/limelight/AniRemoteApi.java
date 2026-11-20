@@ -145,26 +145,53 @@ public final class AniRemoteApi {
         }
     }
 
-    public static JSONObject login(Context context, String rentalCode, String activationPin,
-                                   String accessToken, String refreshToken) throws Exception {
+    public static JSONObject login(Context context, String rentalCode, String activationCode) throws Exception {
         JSONObject body = new JSONObject();
         body.put("p_rental_code", rentalCode.trim());
-        body.put("p_activation_pin", activationPin);
+        body.put("p_activation_code", activationCode.trim().toLowerCase(Locale.ROOT));
         body.put("p_client_install_id", AniSecurePrefs.getClientId(context));
-        body.put("p_device_name", Build.MANUFACTURER + " " + Build.MODEL);
-        body.put("p_app_version", BuildConfig.VERSION_NAME);
-        body.put("p_access_token_hash", sha256(accessToken));
-        body.put("p_refresh_token_hash", sha256(refreshToken));
         return rpc("remote_play_login", body, null);
     }
 
-    public static JSONObject refresh(String oldRefreshToken, String newAccessToken,
-                                      String newRefreshToken) throws Exception {
+    /** DB Android generates, hashes and rotates the token pair server-side. */
+    public static JSONObject refresh(String oldRefreshToken) throws Exception {
         JSONObject body = new JSONObject();
-        body.put("p_refresh_token_hash", sha256(oldRefreshToken));
-        body.put("p_new_access_token_hash", sha256(newAccessToken));
-        body.put("p_new_refresh_token_hash", sha256(newRefreshToken));
+        body.put("p_refresh_token", oldRefreshToken);
         return rpc("remote_play_refresh", body, null);
+    }
+
+    private static void storeRotatedTokens(Context context, JSONObject response) throws Exception {
+        String access = response.optString("access_token", "");
+        String refresh = response.optString("refresh_token", "");
+        if (access.length() != 64 || refresh.length() != 64) {
+            throw new ApiException(401, "REMOTE_PLAY_REFRESH_RESPONSE_INVALID");
+        }
+        AniSecurePrefs.saveTokenPair(context, access, refresh);
+    }
+
+    private static boolean isExpiredClientToken(ApiException error) {
+        String code = error.errorCode == null ? "" : error.errorCode;
+        return error.statusCode == 401 &&
+                (code.contains("REMOTE_PLAY_SESSION_EXPIRED") ||
+                 code.contains("REMOTE_PLAY_TOKEN_EXPIRED") ||
+                 code.contains("TOKEN_EXPIRED"));
+    }
+
+    private static JSONObject authenticated(Context context, String function, JSONObject body) throws Exception {
+        String access = AniSecurePrefs.getClientToken(context);
+        if (access == null || access.length() != 64) {
+            throw new ApiException(401, "REMOTE_PLAY_TOKEN_REQUIRED");
+        }
+        try {
+            return rpc(function, body, access);
+        } catch (ApiException expired) {
+            if (!isExpiredClientToken(expired)) throw expired;
+            String oldRefresh = AniSecurePrefs.getRefreshToken(context);
+            if (oldRefresh == null || oldRefresh.length() != 64) throw expired;
+            JSONObject pair = refresh(oldRefresh);
+            storeRotatedTokens(context, pair);
+            return rpc(function, body, pair.getString("access_token"));
+        }
     }
 
     public static JSONObject listHosts(String clientToken) throws Exception {
@@ -190,18 +217,6 @@ public final class AniRemoteApi {
         body.put("p_device_id", hostDeviceId);
         body.put("p_idempotency_key", idempotencyKey);
         return rpc("remote_play_request_session", body, clientToken);
-    }
-
-    public static JSONObject markActive(Context context, String sessionId) throws Exception {
-        JSONObject body = new JSONObject();
-        body.put("p_session_id", sessionId);
-        return authenticated(context, "remote_play_session_mark_streaming", body);
-    }
-
-    public static JSONObject markActive(String clientToken, String sessionId) throws Exception {
-        JSONObject body = new JSONObject();
-        body.put("p_session_id", sessionId);
-        return rpc("remote_play_session_mark_streaming", body, clientToken);
     }
 
     public static JSONObject heartbeat(Context context, String sessionId) throws Exception {
