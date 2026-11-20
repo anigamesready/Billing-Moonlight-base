@@ -101,10 +101,10 @@ public final class AniSessionController {
             if (response.optBoolean("stop_stream", false)) {
                 running = false;
                 MAIN.post(() -> {
-                    Activity activity = activityRef.get();
-                    if (activity != null && !activity.isFinishing()) {
-                        Toast.makeText(activity, "Waktu sesi berakhir. Kembali ke dashboard.", Toast.LENGTH_LONG).show();
-                        activity.finish();
+                    Activity currentActivity = activityRef.get();
+                    if (currentActivity != null && !currentActivity.isFinishing()) {
+                        Toast.makeText(currentActivity, "Waktu sesi berakhir. Kembali ke dashboard.", Toast.LENGTH_LONG).show();
+                        currentActivity.finish();
                     }
                 });
             }
