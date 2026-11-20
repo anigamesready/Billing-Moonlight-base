@@ -290,11 +290,14 @@ public sealed class HostAgentWorker : BackgroundService
         string challengeId = GetString(challenge, "challenge_id");
         string clientName = GetString(challenge, "client_name");
         string pin = GetString(challenge, "pin");
+        string expectedClientAddress = NormalizePeerAddress(GetString(challenge, "expected_client_address"));
         if (challengeId.Length != 36 || !Guid.TryParse(challengeId, out _) ||
             pin.Length != 4 || !pin.All(char.IsDigit) ||
-            string.IsNullOrWhiteSpace(clientName) || clientName.Length > 128)
+            string.IsNullOrWhiteSpace(clientName) || clientName.Length > 128 ||
+            string.IsNullOrWhiteSpace(expectedClientAddress) ||
+            !HostAgentConfig.IsApprovedOverlayAddress(expectedClientAddress))
         {
-            _logger.LogWarning("DB Android returned an invalid pairing challenge for session {SessionId}", sessionId);
+            _logger.LogWarning("DB Android returned an invalid or unapproved client pairing challenge for session {SessionId}", sessionId);
             return;
         }
 
@@ -309,14 +312,15 @@ public sealed class HostAgentWorker : BackgroundService
             string name = GetString(item, "name");
             string address = NormalizePeerAddress(GetString(item, "address"));
             if (string.Equals(name, clientName, StringComparison.Ordinal) &&
-                !string.IsNullOrWhiteSpace(address))
+                string.Equals(address, expectedClientAddress, StringComparison.OrdinalIgnoreCase))
             {
                 matches.Add((GetString(item, "id"), address));
             }
         }
 
-        // Fail closed on an ambiguous Sunshine queue. A unique, exact installation
-        // name plus a valid peer address is required; never approve the first item.
+        // Fail closed on an ambiguous Sunshine queue. Both the unique installation
+        // name AND the exact client IP approved by DB Android must match this session.
+        // Never approve a same-name request that originated from another device.
         if (matches.Count != 1)
         {
             if (matches.Count > 1)
