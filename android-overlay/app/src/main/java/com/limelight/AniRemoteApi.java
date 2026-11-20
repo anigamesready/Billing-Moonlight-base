@@ -263,12 +263,16 @@ public final class AniRemoteApi {
         return rpc("remote_play_pairing_prepare", body, clientToken);
     }
 
+    /** DB Android v0.1 has no top-up-info RPC; use the configured support contact locally. */
     public static JSONObject topupInfo(Context context) throws Exception {
-        return authenticated(context, "remote_play_topup_info", new JSONObject());
+        JSONObject info = new JSONObject();
+        info.put("merchant_whatsapp", "082298316902");
+        info.put("qris_image_url", "");
+        return info;
     }
 
     public static JSONObject topupInfo(String clientToken) throws Exception {
-        return rpc("remote_play_topup_info", new JSONObject(), clientToken);
+        return topupInfo(null);
     }
 
     public static JSONObject logout(String clientToken) throws Exception {
