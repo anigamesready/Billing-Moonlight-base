@@ -26,6 +26,18 @@ try
         "Address below Mesh range must be rejected.");
     Assert(!HostAgentConfig.IsCloudflareMeshAddress(IPAddress.Parse("100.112.0.1")),
         "Address above Mesh range must be rejected.");
+    Assert(HostAgentConfig.IsApprovedOverlayAddress("100.96.23.45"),
+        "Approved Cloudflare Mesh pairing address rejected.");
+    Assert(HostAgentConfig.IsApprovedOverlayAddress("10.20.30.40"),
+        "Approved RFC1918 WireGuard pairing address rejected.");
+    Assert(HostAgentConfig.IsApprovedOverlayAddress("fd12:3456:789a::1"),
+        "Approved IPv6 ULA WireGuard pairing address rejected.");
+    Assert(!HostAgentConfig.IsApprovedOverlayAddress("100.95.255.254"),
+        "Adjacent CGNAT pairing address must be rejected.");
+    Assert(!HostAgentConfig.IsApprovedOverlayAddress("8.8.8.8"),
+        "Public IPv4 pairing address must be rejected.");
+    Assert(!HostAgentConfig.IsApprovedOverlayAddress("not-an-ip"),
+        "Malformed pairing address must be rejected.");
 
     var mesh = new HostAgentConfig
     {
