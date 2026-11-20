@@ -10,7 +10,6 @@ import android.widget.TextView;
 import android.widget.Toast;
 import org.json.JSONObject;
 import java.lang.ref.WeakReference;
-import java.time.OffsetDateTime;
 import java.util.Locale;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
@@ -63,12 +62,17 @@ public final class AniSessionController {
 
         WORKER.execute(() -> {
             try {
-                JSONObject result = AniRemoteApi.markActive(activity, session);
-                if (!result.optBoolean("ok", false)) throw new IllegalStateException("SESSION_ACTIVATION_DENIED");
-                long deadline = OffsetDateTime.parse(result.getString("deadline_at")).toInstant().toEpochMilli();
-                long serverNow = OffsetDateTime.parse(result.getString("server_time")).toInstant().toEpochMilli();
-                serverDeadlineMillis = deadline;
-                serverOffsetMillis = serverNow - System.currentTimeMillis();
+                JSONObject result = AniRemoteApi.heartbeat(activity, session);
+                String state = result.optString("status", "");
+                long remaining = result.optLong("remaining_seconds", 0);
+                if (!result.optBoolean("ok", false) || result.optBoolean("settled", false) ||
+                        remaining <= 0 || !(state.equals("starting") || state.equals("active"))) {
+                    throw new IllegalStateException("SESSION_NOT_ACTIVE");
+                }
+                // The DB Android v0.1 heartbeat returns an authoritative remaining_seconds
+                // value, not server_time. Rebase the countdown on every heartbeat.
+                serverOffsetMillis = 0;
+                serverDeadlineMillis = System.currentTimeMillis() + remaining * 1000L;
                 running = true;
                 MAIN.post(() -> {
                     if (timerView != null) {
@@ -79,7 +83,7 @@ public final class AniSessionController {
                     startLoops();
                 });
             } catch (Exception e) {
-                failClosed(activity, "Sesi tidak dapat diaktifkan oleh server. Stream dihentikan.");
+                failClosed(activity, "Sesi belum aktif di server. Host Agent harus menerima perintah mulai.");
             }
         });
     }
@@ -98,12 +102,19 @@ public final class AniSessionController {
                 activity == null || activity.isFinishing()) return;
         try {
             JSONObject response = AniRemoteApi.heartbeat(activity, activeSessionId);
-            if (response.optBoolean("stop_stream", false)) {
+            String state = response.optString("status", "");
+            long remaining = response.optLong("remaining_seconds", 0);
+            boolean mustStop = !response.optBoolean("ok", false) ||
+                    response.optBoolean("settled", false) || remaining <= 0 ||
+                    !(state.equals("starting") || state.equals("active"));
+            if (!mustStop) {
+                serverDeadlineMillis = System.currentTimeMillis() + remaining * 1000L;
+            } else {
                 running = false;
                 MAIN.post(() -> {
                     Activity currentActivity = activityRef.get();
                     if (currentActivity != null && !currentActivity.isFinishing()) {
-                        Toast.makeText(currentActivity, "Waktu sesi berakhir. Kembali ke dashboard.", Toast.LENGTH_LONG).show();
+                        Toast.makeText(currentActivity, "Sesi selesai atau sudah ditutup server. Kembali ke dashboard.", Toast.LENGTH_LONG).show();
                         currentActivity.finish();
                     }
                 });
