@@ -53,18 +53,11 @@ function Protect-LocalMachine([string]$value) {
     [Convert]::ToBase64String($protected)
 }
 
-$random = [Security.Cryptography.RandomNumberGenerator]::Create()
-$tokenBytes = New-Object byte[] 32
-$random.GetBytes($tokenBytes)
-$hostToken = [BitConverter]::ToString($tokenBytes).Replace('-', '').ToLowerInvariant()
-[Array]::Clear($tokenBytes, 0, $tokenBytes.Length)
-$random.Dispose()
-
 $folder = Join-Path $env:ProgramData "AniGamesReady\HostAgent"
 New-Item -ItemType Directory -Force -Path $folder | Out-Null
 $config = @{
     ApiBaseUrl = $apiBase
-    HostTokenProtected = Protect-LocalMachine $hostToken
+    HostTokenProtected = ""
     EnrollmentCodeProtected = Protect-LocalMachine $enrollmentCode.Trim()
     Enrolled = $false
     MediaAddress = $mediaAddress.Trim()
