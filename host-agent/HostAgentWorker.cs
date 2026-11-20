@@ -12,13 +12,15 @@ namespace AniGamesReady.HostAgent;
 /// </summary>
 public sealed class HostAgentWorker : BackgroundService
 {
-    private const string AgentVersion = "0.2.1";
+    private const string AgentVersion = "0.3.0";
     private readonly ILogger<HostAgentWorker> _logger;
     private HostAgentConfig? _config;
     private HttpClient? _api;
     private HttpClient? _sunshine;
     private volatile string _activeSessionId = "";
     private int _pairingWorkerRunning;
+    private bool _mediaRouteWarningShown;
+    private string _lastMediaAddress = "";
 
     public HostAgentWorker(ILogger<HostAgentWorker> logger) => _logger = logger;
 
@@ -120,11 +122,36 @@ public sealed class HostAgentWorker : BackgroundService
 
     private async Task<JsonElement> SendHeartbeat(CancellationToken ct)
     {
-        bool sunshineReady = await IsSunshineReady(ct);
+        // Cloudflare Mesh addresses can persist across reconnects, but we always
+        // discover the current address from the live Cloudflare One adapter instead
+        // of asking the operator to paste an IP into the installer.
+        string mediaAddress = _config!.ResolveMediaAddress();
+        bool mediaRouteReady = !string.IsNullOrWhiteSpace(mediaAddress);
+        if (!mediaRouteReady)
+        {
+            if (!_mediaRouteWarningShown)
+            {
+                _logger.LogWarning(
+                    "Remote Play media route is not ready. For Cloudflare Mesh, install Cloudflare One Client, enroll this PC in the same organization as the Android client, and connect it.");
+                _mediaRouteWarningShown = true;
+            }
+            _lastMediaAddress = "";
+        }
+        else
+        {
+            _mediaRouteWarningShown = false;
+            if (!string.Equals(_lastMediaAddress, mediaAddress, StringComparison.OrdinalIgnoreCase))
+            {
+                _logger.LogInformation("Remote Play media overlay address detected: {MediaAddress}", mediaAddress);
+                _lastMediaAddress = mediaAddress;
+            }
+        }
+
+        bool sunshineReady = mediaRouteReady && await IsSunshineReady(ct);
         JsonElement response = await PostRpc("remote_play_host_heartbeat", new
         {
             p_sunshine_ready = sunshineReady,
-            p_media_address = _config!.MediaAddress,
+            p_media_address = mediaRouteReady ? mediaAddress : null,
             p_agent_version = AgentVersion
         }, _config.HostToken, ct);
 
