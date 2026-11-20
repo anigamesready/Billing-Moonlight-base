@@ -2,52 +2,56 @@
 
 Updated: 2026-11-20 (Asia/Jakarta)
 
-## Current workspace
+## Workspace boundaries
 
-- Repository: `anigamesready/Billing-Moonlight-base`
-- Working branch: `feature/remote-play-db-android-v0.1`
-- Parent baseline: `main` at `1407c9deaa1828eabba9dd223be6c1b764dbef63`
-- Current change scope: README and integration-contract documentation only; no Android/Windows runtime code has been committed.
+- App/Host Agent repository: `anigamesready/Billing-Moonlight-base`.
+- Current isolated work branch: `feature/ani-remote-play-db-android-v0.2`.
+- Parent baseline: `feature/remote-play-db-android-v0.1` at `9fb46359d1a118a1e65cd7ffd59d034986342d33`.
+- The Moonlight repository is the only place for Moonlight Android overlay, custom Windows Host Agent, app CI and Moonlight release artifacts.
+- `anigamesready/PC-Billing` is read-only source reference in this task. No code or files are copied into it or committed there.
+- Main branch and all other Ani Games Ready repositories remain unchanged.
 
-## Audited inputs
+## Current findings
 
-| Input | SHA-256 | Verified identity |
-|---|---|---|
-| `app-nonRoot-release.apk` | `80ff02a1b674fcfaea54c43120c50f4514856a3be9a1d05b9299cd487aef9c2e` | Android package `com.limelight`, version `12.2`, versionCode `315`; Moonlight streaming client, not Ani dashboard |
-| `MoonlightSetup-6.2.0.exe` | `ee2a1b56ec83010f4f8a275bb71892a7dc7a3bc874dfaebe706b74d5d10831bd` | Windows executable; not an Ani Host Agent |
-| `Sunshine-Windows-AMD64-installer.msi` | `67cb7451fc522d3741d19362aeda3ef0d05ca32f2aeaf5faa9a09768ef6a3174` | Sunshine Windows x64 installer; not an Ani Host Agent |
-| QRIS JPEG | Not packaged into app yet | Top-up display asset only |
+- Main branch is a README-only workspace.
+- `feature/ani-remote-play-v1` is an older exploratory branch with Android/Host Agent scaffolding and a CI workflow, but its API client, Host Agent and docs contain Supabase-specific endpoints and assumptions. Do not merge or reuse its Supabase backend.
+- `feature/remote-play-db-android-v0.1` records the correct DB Android direction: reuse the existing Node API + PostgreSQL on the Redmi/Termux server; keep Remote Play-only state additive and separate.
+- Current DB Android source reference: `anigamesready/PC-Billing`, branch `feature/db-android-stop-pause-policy-20261118`, commit `38a75ad85adf60a96a82cd1e7050568119f66a18`.
+- That source has the existing Node API, Admin/Billing/Reseller RPCs and migration 012, but no Remote Play login, host enrollment/permissions, session lease, cooldown or Host Agent RPCs.
+- Node API defaults to loopback `127.0.0.1:8787`; isolated staging uses `127.0.0.1:8788`. Neither is directly reachable from a customer phone over the internet.
+- The live, stable HTTPS DB Android gateway and the exact shared configuration mechanism used by existing Android apps have not yet been verified. Do not hardcode any URL or build a customer APK against loopback/temporary Quick Tunnel.
+- Moonlight Android baseline remains v12.2, commit `b48494cb96bff23d8886c4775cc4f39a1075495d`.
+- Uploaded `app-nonRoot-release.apk` is official/upstream Moonlight v12.2 (package `com.limelight`), not an Ani Games Ready app. Uploaded MoonlightSetup EXE and Sunshine MSI are upstream installers, not the custom Host Agent.
 
-APK metadata reports Moonlight v12.2 source commit in `META-INF/version-control-info.textproto`, while `git.properties` contains a different abbreviated identifier (`05b2e96`). Treat the uploaded binary as a functional reference only; the reproducible release must be built from the pinned upstream source commit and independently verified.
-
-## Backend evidence
-
-- Latest DB Android source branch reviewed: `anigamesready/PC-Billing` branch `feature/db-android-stop-pause-policy-20261118`, commit `38a75ad85adf60a96a82cd1e7050568119f66a18`.
-- The branch contains DB Android local Node API, current Billing/Admin/Reseller migrations, stage gateway/relay source and additive migration `012_billing_stop_pause_policy.sql`.
-- The API still lacks customer Remote Play login, host registration/permission, remote session lease and cooldown functions.
-- The current Remote Play workspace has no custom Android client source, Host Agent source, or media transport implementation.
-- No proof yet that this exact source/migration/tunnel configuration is installed on the live Redmi. No live database or Android server was changed in this task.
-
-## Implementation state
+## Implementation checklist
 
 | Work item | State |
 |---|---|
-| Confirm DB backend choice (existing DB Android, no Supabase) | Done |
-| Pin Moonlight Android baseline | Done |
-| Inspect uploaded APK/EXE/MSI identity | Done, with APK provenance note above |
-| Audit current DB Android source and staging separation | Done at repository level; live deployment not verified |
-| Define reuse of existing rental accounts and PC inventory | Designed |
-| Define isolated `remote_play` schema and RPC contract | Proposed; not deployed |
-| Add customer activation credential, host token and admin permission flow | Not implemented |
-| Enforce cross-PC-Billing / Remote Play single-session lock | Not implemented |
-| Enforce 3-hour cap, shared balance settlement and 10-minute cooldown | Not implemented |
-| Implement Android Ani dashboard and Moonlight seamless launch | Not implemented |
-| Implement Windows Host Agent | Not implemented |
-| Implement and test UDP-capable game-stream network path | Not implemented |
-| Build signed APK/EXE and end-to-end test | Not started |
+| Confirm separate repo boundary | Done |
+| Create isolated Moonlight branch | Done |
+| Confirm no Supabase for Remote Play | Done |
+| Pin upstream Moonlight Android source | Done |
+| Audit prior Supabase-oriented implementation branch | Done; retain only as code reference |
+| Audit latest DB Android API source | Done at repository level; live Redmi state not verified |
+| Define exact DB Android customer/host RPC contract | In progress |
+| Verify existing shared API endpoint config mechanism | Blocked on identifying a source-compatible shared config provider |
+| Implement Android activation PIN login + dashboard + secure token rotation | Not implemented |
+| Integrate Moonlight client cert/pairing + stream lifecycle | Not implemented |
+| Implement Windows Host Agent using DB Android token family | Not implemented |
+| Implement real TCP+UDP media path (direct P2P/relay fallback) | Not implemented |
+| Add backend RPCs to separate DB Android backend repository | Outside this repository's source scope; still a release dependency |
+| Build reproducible Android APK and Windows Host Agent | Not started |
+| Run Android, Windows, backend concurrency and end-to-end tests | Not started |
 
-## Stop / release conditions
+## Security and release gates
 
-Do not release a merely rebranded Moonlight APK. The app is not final until the Android dashboard and native streaming flow, DB Android API additions, Host Agent, host authorization, cross-session transaction guard, media networking and the full test matrix are implemented and verified.
+- Do not add Supabase SDKs, URLs, keys, Edge Functions, migration directories or dual-DB routing.
+- Do not mutate live Redmi database or existing Billing migrations.
+- Customer authentication requires a separate Admin-issued activation secret; rental ID alone is never a password.
+- Customer and Host Agent tokens are separate families; store token hashes on server and encrypted/DPAPI-protected raw tokens on devices.
+- The Android app receives no database credentials and no Sunshine admin secret.
+- The Host Agent uses Sunshine's local-only API endpoint. Never expose Sunshine Web UI/REST administration to the internet.
+- Do not present the uploaded upstream Moonlight APK or any debug build as the final Ani Games Ready app.
+- Release only after exact API availability, stable HTTPS endpoint, Android/Windows clean builds, signature/package verification, secure TCP+UDP media path, 3-hour cap, 10-minute cooldown, balance settlement and PC Billing concurrency/regression tests all pass.
 
-No production database migrations, Supabase changes, Termux process changes, Sunshine configuration changes or public port openings were made.
+No live database, Termux service, Cloudflare gateway, Sunshine installation or other repository has been changed.
