@@ -58,6 +58,18 @@ for token in ("NormalizePeerAddress", 'GetString(item, "address")',
         raise SystemExit("Sunshine pairing is not bound to the server-approved peer address: " + token)
 if "ProtectedData.Protect" not in config or "HostTokenProtected" not in config:
     raise SystemExit("Host Agent token must be protected using Windows DPAPI.")
+for token in ("ResolveMediaAddress()", "IsCloudflareMeshAddress", "100.96.0.0/12",
+              'transport == "cloudflare_mesh"', 'transport == "wireguard"'):
+    if token not in config:
+        raise SystemExit("Host Agent Cloudflare Mesh address validation is missing: " + token)
+for token in ("ResolveMediaAddress()", "_mediaRouteWarningShown",
+              "mediaRouteReady ? mediaAddress : null", "AgentVersion = \"0.3.0\""):
+    if token not in worker:
+        raise SystemExit("Host Agent dynamic Mesh heartbeat is missing: " + token)
+for token in ("MediaTransport = $mediaTransport", "Cloudflare Mesh TCP",
+              "Cloudflare Mesh UDP", "100.96.0.0/12", "Block Sunshine Web UI from Mesh"):
+    if token not in installer:
+        raise SystemExit("Host Agent Mesh firewall installer is incomplete: " + token)
 if "DB_ANDROID_API_BASE_URL" not in patcher or "supabase.co" not in patcher:
     raise SystemExit("Build-time DB Android endpoint validation is missing.")
 if "kode aktivasi" not in installer.lower() and "enrollment" not in installer.lower():
