@@ -197,19 +197,23 @@ def main() -> None:
     # For Ani sessions, every stream termination returns to the Ani dashboard.
     game = replace_once(
         game,
-        '                // Stop processing controller input\n                controllerHandler.stop();',
-        '                if (AniSecurePrefs.isRemoteMode(Game.this)) {\n'
-        '                    AniSessionController.stop(Game.this, "stream_terminated");\n'
-        '                    if (errorCode != MoonBridge.ML_ERROR_GRACEFUL_TERMINATION) {\n'
-        '                        Toast.makeText(Game.this, "Koneksi remote terputus. Sesi ditutup.", Toast.LENGTH_LONG).show();\n'
-        '                    }\n'
-        '                    finish();\n'
-        '                    Intent dashboard = new Intent(Game.this, AniDashboardActivity.class);\n'
-        '                    dashboard.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP);\n'
-        '                    startActivity(dashboard);\n'
-        '                    return;\n'
-        '                }\n'
-        '                // Stop processing controller input\n                controllerHandler.stop();',
+        '                // Ungrab input\\n                setInputGrabState(false);\\n\\n                if (!displayedFailureDialog) {',
+        '                // Ungrab input\\n'
+        '                setInputGrabState(false);\\n\\n'
+        '                if (AniSecurePrefs.isRemoteMode(Game.this)) {\\n'
+        '                    displayedFailureDialog = true;\\n'
+        '                    stopConnection();\\n'
+        '                    AniSessionController.stop(Game.this, "stream_terminated");\\n'
+        '                    if (errorCode != MoonBridge.ML_ERROR_GRACEFUL_TERMINATION) {\\n'
+        '                        Toast.makeText(Game.this, "Koneksi remote terputus. Sesi ditutup.", Toast.LENGTH_LONG).show();\\n'
+        '                    }\\n'
+        '                    finish();\\n'
+        '                    Intent dashboard = new Intent(Game.this, AniDashboardActivity.class);\\n'
+        '                    dashboard.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP);\\n'
+        '                    startActivity(dashboard);\\n'
+        '                    return;\\n'
+        '                }\\n\\n'
+        '                if (!displayedFailureDialog) {',
         "return to Ani dashboard when stream terminates"
     )
     game = replace_once(
