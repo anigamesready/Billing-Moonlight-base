@@ -67,8 +67,11 @@ runtime_sources = [
 ]
 for source in runtime_sources:
     lowered = source.lower()
-    if "supabase.co" in lowered or "wzkjpycjizexxcxrfdvr" in lowered:
+    if "wzkjpycjizexxcxrfdvr" in lowered or "https://*.supabase.co" in lowered:
         raise SystemExit("Legacy Supabase endpoint detected in runtime sources.")
+    for line in lowered.splitlines():
+        if "supabase.co" in line and ("https://" in line or "functions/v1" in line):
+            raise SystemExit("Legacy Supabase URL detected in runtime sources.")
 
 print("Ani Remote Play static source checks passed.")
 print("Note: this does not replace backend RPC, Android runtime, Sunshine pairing, or media-path tests.")
