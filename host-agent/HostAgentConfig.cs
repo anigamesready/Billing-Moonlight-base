@@ -1,4 +1,6 @@
 using System.Security.Cryptography;
+using System.Net;
+using System.Net.NetworkInformation;
 using System.Text;
 using System.Text.Json;
 
@@ -61,12 +63,27 @@ public sealed class HostAgentConfig
             throw new InvalidDataException("Kode enrollment Admin belum tersedia.");
         }
 
-        if (!System.Net.IPAddress.TryParse(config.MediaAddress, out var mediaIp) ||
-            !(mediaIp.GetAddressBytes().Length == 16 ? (mediaIp.GetAddressBytes()[0] & 0xfe) == 0xfc :
-                mediaIp.GetAddressBytes()[0] == 10 ||
-                (mediaIp.GetAddressBytes()[0] == 172 && mediaIp.GetAddressBytes()[1] >= 16 && mediaIp.GetAddressBytes()[1] <= 31) ||
-                (mediaIp.GetAddressBytes()[0] == 192 && mediaIp.GetAddressBytes()[1] == 168)))
-            throw new InvalidDataException("MediaAddress wajib berupa IP privat WireGuard/VPN yang diterima DB Android.");
+        string transport = (config.MediaTransport ?? "").Trim().ToLowerInvariant();
+        if (transport == "wireguard")
+        {
+            if (!IPAddress.TryParse(config.MediaAddress, out var mediaIp) ||
+                !IsPrivateOverlayAddress(mediaIp))
+                throw new InvalidDataException("MediaAddress wajib berupa IP privat WireGuard yang diterima DB Android.");
+        }
+        else if (transport == "cloudflare_mesh")
+        {
+            // The Host Agent discovers the current 100.96.0.0/12 address from
+            // the Cloudflare One Client adapter on every heartbeat. Static values
+            // are optional and, when supplied, must be inside the exact Mesh range.
+            if (!string.IsNullOrWhiteSpace(config.MediaAddress) &&
+                (!IPAddress.TryParse(config.MediaAddress, out var meshIp) ||
+                 !IsCloudflareMeshAddress(meshIp)))
+                throw new InvalidDataException("MediaAddress Cloudflare Mesh harus berada di 100.96.0.0/12.");
+        }
+        else
+        {
+            throw new InvalidDataException("MediaTransport harus wireguard atau cloudflare_mesh.");
+        }
         if (config.MediaPort is < 1 or > 65535)
             throw new InvalidDataException("MediaPort tidak valid.");
         if (!string.Equals(config.MediaTransport, "wireguard", StringComparison.OrdinalIgnoreCase))
@@ -80,6 +97,52 @@ public sealed class HostAgentConfig
             throw new InvalidDataException("Sunshine API hanya boleh https://127.0.0.1:47990.");
 
         return config;
+    }
+
+    public string ResolveMediaAddress()
+    {
+        if (string.Equals(MediaTransport, "wireguard", StringComparison.OrdinalIgnoreCase))
+            return MediaAddress.Trim();
+
+        if (!string.Equals(MediaTransport, "cloudflare_mesh", StringComparison.OrdinalIgnoreCase))
+            return "";
+
+        foreach (var network in NetworkInterface.GetAllNetworkInterfaces()
+                     .Where(n => n.OperationalStatus == OperationalStatus.Up)
+                     .OrderBy(n => n.Name, StringComparer.OrdinalIgnoreCase))
+        {
+            string identity = network.Name + " " + network.Description;
+            if (!identity.Contains("Cloudflare", StringComparison.OrdinalIgnoreCase) &&
+                !identity.Contains("WARP", StringComparison.OrdinalIgnoreCase))
+                continue;
+
+            foreach (var address in network.GetIPProperties().UnicastAddresses)
+            {
+                if (IsCloudflareMeshAddress(address.Address))
+                    return address.Address.ToString();
+            }
+        }
+        return "";
+    }
+
+    public static bool IsCloudflareMeshAddress(IPAddress address)
+    {
+        if (address.IsIPv4MappedToIPv6) address = address.MapToIPv4();
+        byte[] bytes = address.GetAddressBytes();
+        // Cloudflare Mesh allocates from 100.96.0.0/12 (100.96–100.111).
+        return bytes.Length == 4 && bytes[0] == 100 && bytes[1] >= 96 && bytes[1] <= 111;
+    }
+
+    private static bool IsPrivateOverlayAddress(IPAddress address)
+    {
+        if (address.IsIPv4MappedToIPv6) address = address.MapToIPv4();
+        byte[] bytes = address.GetAddressBytes();
+        if (bytes.Length == 16)
+            return (bytes[0] & 0xfe) == 0xfc;
+        if (bytes.Length != 4) return false;
+        return bytes[0] == 10 ||
+            (bytes[0] == 172 && bytes[1] >= 16 && bytes[1] <= 31) ||
+            (bytes[0] == 192 && bytes[1] == 168);
     }
 
     public void Save()
