@@ -76,7 +76,7 @@ jobs:
           # sdkmanager may exit early after licenses are accepted, causing SIGPIPE.
           # The pinned Moonlight v12.2 source uses Android 17 (API 37) APIs.
           # Install the Cinnamon Bun preview platform and matching Build Tools.
-          sdkmanager --channel=3 "platform-tools" "platforms;android-37" "build-tools;37.0.0" "ndk;29.0.14206865"
+          sdkmanager --channel=3 "platform-tools" "platforms;android-37.0" "build-tools;37.0.0" "ndk;29.0.14206865"
 
       - name: Validate and apply Ani overlay
         shell: bash
