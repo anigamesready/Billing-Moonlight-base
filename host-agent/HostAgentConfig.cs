@@ -86,8 +86,8 @@ public sealed class HostAgentConfig
         }
         if (config.MediaPort is < 1 or > 65535)
             throw new InvalidDataException("MediaPort tidak valid.");
-        if (!string.Equals(config.MediaTransport, "wireguard", StringComparison.OrdinalIgnoreCase))
-            throw new InvalidDataException("Saat ini Host Agent hanya menerima rute media WireGuard yang sudah disiapkan.");
+        if (!IsSupportedMediaTransport(transport))
+            throw new InvalidDataException("MediaTransport harus wireguard atau cloudflare_mesh.");
 
         if (!Uri.TryCreate(config.SunshineApiBaseUrl, UriKind.Absolute, out var sunshineUri) ||
             sunshineUri.Scheme != Uri.UriSchemeHttps ||
@@ -123,6 +123,13 @@ public sealed class HostAgentConfig
             }
         }
         return "";
+    }
+
+    public static bool IsSupportedMediaTransport(string? transport)
+    {
+        string value = (transport ?? "").Trim();
+        return value.Equals("wireguard", StringComparison.OrdinalIgnoreCase) ||
+               value.Equals("cloudflare_mesh", StringComparison.OrdinalIgnoreCase);
     }
 
     public static bool IsCloudflareMeshAddress(IPAddress address)
