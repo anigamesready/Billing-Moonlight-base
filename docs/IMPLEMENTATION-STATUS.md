@@ -7,7 +7,7 @@ Updated: 2026-11-20 (Asia/Jakarta)
 - Repository: `anigamesready/Billing-Moonlight-base`
 - Working branch: `feature/remote-play-db-android-v0.1`
 - Parent baseline: `main` at `1407c9deaa1828eabba9dd223be6c1b764dbef63`
-- Current change scope: documentation and integration contract only; no Android/Windows runtime code has been committed.
+- Current change scope: README and integration-contract documentation only; no Android/Windows runtime code has been committed.
 
 ## Audited inputs
 
@@ -22,12 +22,11 @@ APK metadata reports Moonlight v12.2 source commit in `META-INF/version-control-
 
 ## Backend evidence
 
-- Repository: `anigamesready/PC-Billing`.
-- Audited source: `db-android-core/server/server.mjs` at commit `d86e7ecfa82d7af29bb53d067a316984b1fef69b`.
-- Existing Node API defaults to loopback `127.0.0.1:8787`; isolated staging instructions specify a separate database/API on `127.0.0.1:8788`.
-- Current API includes allowlisted Admin/Billing RPCs and the existing PC device protocol. It does not currently expose Remote Play customer auth, host registration, host authorization, session lease or cooldown APIs.
-- Current Web/API relay is for bounded HTTP control routes, not Moonlight audio/video streaming.
-- No proof yet that the audited backend commit, staging migrations, current tunnel endpoint or relay agent exactly match the live Redmi installation. No live database or Android server was changed in this task.
+- Latest DB Android source branch reviewed: `anigamesready/PC-Billing` branch `feature/db-android-stop-pause-policy-20261118`, commit `38a75ad85adf60a96a82cd1e7050568119f66a18`.
+- The branch contains DB Android local Node API, current Billing/Admin/Reseller migrations, stage gateway/relay source and additive migration `012_billing_stop_pause_policy.sql`.
+- The API still lacks customer Remote Play login, host registration/permission, remote session lease and cooldown functions.
+- The current Remote Play workspace has no custom Android client source, Host Agent source, or media transport implementation.
+- No proof yet that this exact source/migration/tunnel configuration is installed on the live Redmi. No live database or Android server was changed in this task.
 
 ## Implementation state
 
@@ -36,6 +35,7 @@ APK metadata reports Moonlight v12.2 source commit in `META-INF/version-control-
 | Confirm DB backend choice (existing DB Android, no Supabase) | Done |
 | Pin Moonlight Android baseline | Done |
 | Inspect uploaded APK/EXE/MSI identity | Done, with APK provenance note above |
+| Audit current DB Android source and staging separation | Done at repository level; live deployment not verified |
 | Define reuse of existing rental accounts and PC inventory | Designed |
 | Define isolated `remote_play` schema and RPC contract | Proposed; not deployed |
 | Add customer activation credential, host token and admin permission flow | Not implemented |
