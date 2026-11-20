@@ -246,12 +246,12 @@ public class AniDashboardActivity extends Activity {
             JSONObject started=null;
             try {
                 token=AniSecurePrefs.getClientToken(this);
-                started=AniRemoteApi.startSession(token,hostId,UUID.randomUUID().toString());
+                started=AniRemoteApi.startSession(this,hostId,UUID.randomUUID().toString());
                 String sessionId=started.optString("session_id","");
                 String address=started.optString("media_address","");
                 int port=started.optInt("media_port",47989);
                 if(sessionId.isEmpty() || address.isEmpty()) {
-                    try { if(!sessionId.isEmpty()) AniRemoteApi.stopSession(token,sessionId,"host_route_unavailable"); } catch(Exception ignored) {}
+                    try { if(!sessionId.isEmpty()) AniRemoteApi.stopSession(this,sessionId,"host_route_unavailable"); } catch(Exception ignored) {}
                     throw new Exception("HOST_AGENT_OR_ROUTE_NOT_READY");
                 }
                 AniSecurePrefs.saveActiveSession(this,sessionId);
@@ -266,7 +266,7 @@ public class AniDashboardActivity extends Activity {
                 if(started!=null) {
                     String sid=started.optString("session_id","");
                     if(!sid.isEmpty() && !started.optBoolean("idempotent",false)) {
-                        try { AniRemoteApi.stopSession(token,sid,"connect_prepare_failed"); } catch(Exception ignored) {}
+                        try { AniRemoteApi.stopSession(this,sid,"connect_prepare_failed"); } catch(Exception ignored) {}
                     }
                 }
                 runOnUiThread(()->{
@@ -305,7 +305,7 @@ public class AniDashboardActivity extends Activity {
                             startActivity(new Intent(AniDashboardActivity.this, PcView.class));
                         });
                     } catch(Exception e) {
-                        try { AniRemoteApi.stopSession(token,sessionId,"host_unreachable"); } catch(Exception ignored) {}
+                        try { AniRemoteApi.stopSession(AniDashboardActivity.this,sessionId,"host_unreachable"); } catch(Exception ignored) {}
                         AniSecurePrefs.clearActiveSession(AniDashboardActivity.this);
                         runOnUiThread(()->{
                             try { unbindService(connection); } catch(Exception ignored) {}
@@ -326,7 +326,7 @@ public class AniDashboardActivity extends Activity {
         final String savedToken=token;
         worker.execute(()->{
             JSONObject info=null;
-            try { info=AniRemoteApi.topupInfo(savedToken); } catch(Exception ignored) {}
+            try { info=AniRemoteApi.topupInfo(this); } catch(Exception ignored) {}
             JSONObject finalInfo=info;
             runOnUiThread(()->{
                 String qris=finalInfo==null?"":finalInfo.optString("qris_image_url","");
