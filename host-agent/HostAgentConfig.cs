@@ -132,6 +132,13 @@ public sealed class HostAgentConfig
                value.Equals("cloudflare_mesh", StringComparison.OrdinalIgnoreCase);
     }
 
+    public static bool IsApprovedOverlayAddress(string value)
+    {
+        if (!IPAddress.TryParse(value, out var address)) return false;
+        if (address.IsIPv4MappedToIPv6) address = address.MapToIPv4();
+        return IsCloudflareMeshAddress(address) || IsPrivateOverlayAddress(address);
+    }
+
     public static bool IsCloudflareMeshAddress(IPAddress address)
     {
         if (address.IsIPv4MappedToIPv6) address = address.MapToIPv4();
