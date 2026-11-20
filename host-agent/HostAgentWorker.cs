@@ -199,12 +199,13 @@ public sealed class HostAgentWorker : BackgroundService
         string taskKey = sessionId + ":" + challengeId;
         if (_pairingTasks.ContainsKey(taskKey)) return;
 
-        var task = ApprovePairing(sessionId, challengeId, pin, clientName, ct);
+        var task = ApprovePairing(sessionId, challengeId, pin, clientName, expectedClientAddress, ct);
         if (!_pairingTasks.TryAdd(taskKey, task)) return;
     }
 
     private async Task ApprovePairing(
-        string sessionId, string challengeId, string pin, string clientName, CancellationToken ct)
+        string sessionId, string challengeId, string pin, string clientName,
+        string expectedClientAddress, CancellationToken ct)
     {
         bool succeeded = false;
         string sunshinePairingId = "";
