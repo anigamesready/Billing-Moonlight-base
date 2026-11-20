@@ -188,8 +188,12 @@ public sealed class HostAgentWorker : BackgroundService
         string challengeId = GetString(challenge, "challenge_id");
         string pin = GetString(challenge, "pin");
         string clientName = GetString(challenge, "client_name");
+        string expectedClientAddress = NormalizePeerAddress(GetString(challenge, "expected_client_address"));
+        // Names are client supplied and spoofable. Never approve a pairing without the
+        // exact peer address assigned to this authenticated Remote Play session.
         if (string.IsNullOrWhiteSpace(challengeId) || pin.Length != 4 ||
-            !pin.All(char.IsDigit) || string.IsNullOrWhiteSpace(clientName))
+            !pin.All(char.IsDigit) || string.IsNullOrWhiteSpace(clientName) ||
+            string.IsNullOrWhiteSpace(expectedClientAddress))
             return;
 
         string taskKey = sessionId + ":" + challengeId;
@@ -216,6 +220,9 @@ public sealed class HostAgentWorker : BackgroundService
                     foreach (var item in pairings.EnumerateArray())
                     {
                         if (!string.Equals(GetString(item, "name"), clientName, StringComparison.Ordinal))
+                            continue;
+                        string pendingAddress = NormalizePeerAddress(GetString(item, "address"));
+                        if (!string.Equals(pendingAddress, expectedClientAddress, StringComparison.Ordinal))
                             continue;
 
                         sunshinePairingId = GetString(item, "id");
@@ -407,6 +414,30 @@ public sealed class HostAgentWorker : BackgroundService
         value.TryGetProperty(key, out var item) && item.ValueKind == JsonValueKind.String
             ? item.GetString() ?? ""
             : "";
+
+    private static string NormalizePeerAddress(string value)
+    {
+        if (string.IsNullOrWhiteSpace(value)) return "";
+        value = value.Trim();
+
+        // Sunshine may return IPv4 as address:port or IPv6 in [address]:port form.
+        if (value.StartsWith("[", StringComparison.Ordinal))
+        {
+            int close = value.IndexOf(']');
+            if (close > 1) value = value.Substring(1, close - 1);
+        }
+        if (System.Net.IPAddress.TryParse(value, out var direct))
+            return direct.ToString();
+
+        int lastColon = value.LastIndexOf(':');
+        if (lastColon > 0)
+        {
+            string hostPart = value.Substring(0, lastColon);
+            if (System.Net.IPAddress.TryParse(hostPart, out var withPort))
+                return withPort.ToString();
+        }
+        return "";
+    }
 
     private static string Sha256(string value)
     {
