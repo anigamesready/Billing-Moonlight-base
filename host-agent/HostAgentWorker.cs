@@ -124,8 +124,17 @@ public sealed class HostAgentWorker : BackgroundService
         bool sunshineReady = false;
         try
         {
-            using var response = await _sunshine!.GetAsync("api/serverinfo", ct);
+            using var response = await _sunshine!.GetAsync("api/apps", ct);
             sunshineReady = response.IsSuccessStatusCode;
+            if (sunshineReady)
+            {
+                // Also validate that the local Sunshine application catalogue is readable.
+                using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync(ct));
+                sunshineReady = document.RootElement.ValueKind == JsonValueKind.Array ||
+                                (document.RootElement.ValueKind == JsonValueKind.Object &&
+                                 document.RootElement.TryGetProperty("apps", out var apps) &&
+                                 apps.ValueKind == JsonValueKind.Array);
+            }
         }
         catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException)
         {
