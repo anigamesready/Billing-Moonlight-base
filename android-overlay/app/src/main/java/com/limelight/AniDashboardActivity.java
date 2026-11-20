@@ -309,7 +309,7 @@ public class AniDashboardActivity extends Activity {
                         try { AniRemoteApi.stopSession(AniDashboardActivity.this,sessionId,"host_unreachable"); } catch(Exception ignored) {}
                         AniSecurePrefs.clearActiveSession(AniDashboardActivity.this);
                         runOnUiThread(()->{
-                            try { unbindService(connection); } catch(Exception ignored) {}
+                            try { unbindService(connectionRef[0]); } catch(Exception ignored) {}
                             messageText.setText("PC tidak dapat dijangkau melalui rute yang didaftarkan. Sesi dibatalkan.");
                         });
                     }
