@@ -16,9 +16,9 @@ The Host Agent is a Windows service that connects the existing DB Android contro
 1. Extract the complete release ZIP to a local folder.
 2. Open PowerShell as Administrator in that folder.
 3. Run `./install-host-agent.ps1`.
-4. Enter the same stable HTTPS DB Android gateway URL, the Admin enrollment code, the PC's WireGuard address and the local Sunshine credentials.
-5. The script generates a unique 256-bit Host Agent token and protects both it and the enrollment credential with Windows DPAPI (LocalMachine).
-6. The Windows service enrolls the Host Agent with DB Android, probes the local Sunshine /api/apps endpoint, sends heartbeats, fetches host-scoped commands and approves only the exact server-issued Sunshine pairing challenge using its pairing_id.
+4. Enter the same stable HTTPS DB Android gateway URL, the one-use Admin enrollment code, this PC's private WireGuard address and the local Sunshine credentials.
+5. DB Android issues a unique 256-bit Host Agent token once during enrollment. The Windows service protects it with Windows DPAPI (LocalMachine); the one-use enrollment code is erased from the local config after enrollment.
+6. The Windows service sends heartbeats, recovers the active session from the DB response, fetches host-scoped commands, and polls only the selected session's pairing challenge. It approves a Sunshine `/api/pin` request only when exactly one pending request matches the unique Ani client certificate name and contains a valid peer IP address. Ambiguous matches are withheld.
 
 ## Security
 
