@@ -17,6 +17,8 @@ public sealed class HostAgentWorker : BackgroundService
     private HostAgentConfig? _config;
     private HttpClient? _api;
     private HttpClient? _sunshine;
+    private volatile string _activeSessionId = "";
+    private int _pairingWorkerRunning;
 
     public HostAgentWorker(ILogger<HostAgentWorker> logger) => _logger = logger;
 
@@ -43,7 +45,7 @@ public sealed class HostAgentWorker : BackgroundService
         _sunshine = new HttpClient(handler)
         {
             BaseAddress = new Uri(EnsureSlash(_config.SunshineApiBaseUrl)),
-            Timeout = TimeSpan.FromSeconds(20)
+            Timeout = TimeSpan.FromMinutes(3)
         };
 
         await base.StartAsync(cancellationToken);
@@ -65,11 +67,13 @@ public sealed class HostAgentWorker : BackgroundService
                 {
                     _logger.LogWarning("Remote Play permission disabled by Admin; closing Sunshine stream");
                     await CloseSunshineStream(stoppingToken);
+                    _activeSessionId = "";
                 }
 
                 JsonElement commandResponse = await PostRpc(
                     "remote_play_host_next_command", new { }, _config.HostToken, stoppingToken);
                 await ProcessCommand(commandResponse, stoppingToken);
+                QueuePairingWorker(stoppingToken);
             }
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
             {
@@ -117,12 +121,27 @@ public sealed class HostAgentWorker : BackgroundService
     private async Task<JsonElement> SendHeartbeat(CancellationToken ct)
     {
         bool sunshineReady = await IsSunshineReady(ct);
-        return await PostRpc("remote_play_host_heartbeat", new
+        JsonElement response = await PostRpc("remote_play_host_heartbeat", new
         {
             p_sunshine_ready = sunshineReady,
             p_media_address = _config!.MediaAddress,
             p_agent_version = AgentVersion
         }, _config.HostToken, ct);
+
+        // The DB Android heartbeat returns the authoritative active_session.
+        // This also recovers the session after a Windows service restart.
+        if (response.TryGetProperty("active_session", out var active) &&
+            active.ValueKind == JsonValueKind.Object)
+        {
+            string sessionId = GetString(active, "id");
+            if (!string.IsNullOrWhiteSpace(sessionId))
+                _activeSessionId = sessionId;
+        }
+        else
+        {
+            _activeSessionId = "";
+        }
+        return response;
     }
 
     private async Task<bool> IsSunshineReady(CancellationToken ct)
@@ -165,14 +184,18 @@ public sealed class HostAgentWorker : BackgroundService
             switch (type)
             {
                 case "start_stream":
-                    // Sunshine is already a service. A successful API health check lets the
-                    // backend atomically move this session from starting -> active on ACK.
+                    // The Moonlight client launches GameStream after the DB-authorized
+                    // session is accepted. The Agent confirms Sunshine readiness and
+                    // retains the session ID so pairing can be approved by pairing_id.
                     success = await IsSunshineReady(ct);
-                    if (!success) error = "SUNSHINE_NOT_READY";
+                    if (success) _activeSessionId = sessionId;
+                    else error = "SUNSHINE_NOT_READY";
                     break;
 
                 case "stop_stream":
                     await CloseSunshineStream(ct);
+                    if (string.Equals(_activeSessionId, sessionId, StringComparison.OrdinalIgnoreCase))
+                        _activeSessionId = "";
                     success = true;
                     break;
 
@@ -193,6 +216,134 @@ public sealed class HostAgentWorker : BackgroundService
             p_status = success ? "completed" : "failed",
             p_result = new { session_id = sessionId, error, agent_version = AgentVersion }
         }, _config!.HostToken, ct);
+    }
+
+    private void QueuePairingWorker(CancellationToken ct)
+    {
+        string sessionId = _activeSessionId;
+        if (string.IsNullOrWhiteSpace(sessionId) ||
+            Interlocked.CompareExchange(ref _pairingWorkerRunning, 1, 0) != 0)
+            return;
+
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                await ProcessPendingPairing(sessionId, ct);
+            }
+            catch (OperationCanceledException) when (ct.IsCancellationRequested) { }
+            catch (Exception ex)
+            {
+                // Never log the challenge PIN, bearer token, or Sunshine credentials.
+                _logger.LogWarning(ex, "Automatic Sunshine pairing check failed for session {SessionId}", sessionId);
+            }
+            finally
+            {
+                Interlocked.Exchange(ref _pairingWorkerRunning, 0);
+            }
+        }, ct);
+    }
+
+    private async Task ProcessPendingPairing(string sessionId, CancellationToken ct)
+    {
+        if (!string.Equals(_activeSessionId, sessionId, StringComparison.OrdinalIgnoreCase)) return;
+
+        JsonElement challenge = await PostRpc("remote_play_host_pairing_poll",
+            new { p_session_id = sessionId }, _config!.HostToken, ct);
+        if (!challenge.TryGetProperty("pending", out var pending) || pending.ValueKind != JsonValueKind.True)
+            return;
+
+        string challengeId = GetString(challenge, "challenge_id");
+        string clientName = GetString(challenge, "client_name");
+        string pin = GetString(challenge, "pin");
+        if (challengeId.Length != 36 || !Guid.TryParse(challengeId, out _) ||
+            pin.Length != 4 || !pin.All(char.IsDigit) ||
+            string.IsNullOrWhiteSpace(clientName) || clientName.Length > 128)
+        {
+            _logger.LogWarning("DB Android returned an invalid pairing challenge for session {SessionId}", sessionId);
+            return;
+        }
+
+        JsonElement pendingPairings = await GetSunshinePendingPairings(ct);
+        if (!pendingPairings.TryGetProperty("pairings", out var pairings) ||
+            pairings.ValueKind != JsonValueKind.Array)
+            return;
+
+        var matches = new List<(string Id, string Address)>();
+        foreach (JsonElement item in pairings.EnumerateArray())
+        {
+            string name = GetString(item, "name");
+            string address = NormalizePeerAddress(GetString(item, "address"));
+            if (string.Equals(name, clientName, StringComparison.Ordinal) &&
+                !string.IsNullOrWhiteSpace(address))
+            {
+                matches.Add((GetString(item, "id"), address));
+            }
+        }
+
+        // Fail closed on an ambiguous Sunshine queue. A unique, exact installation
+        // name plus a valid peer address is required; never approve the first item.
+        if (matches.Count != 1)
+        {
+            if (matches.Count > 1)
+                _logger.LogWarning("More than one Sunshine pairing request matched the active client; approval withheld.");
+            return;
+        }
+
+        var selected = matches[0];
+        if (selected.Id.Length != 32 || !selected.Id.All(Uri.IsHexDigit) ||
+            !string.Equals(_activeSessionId, sessionId, StringComparison.OrdinalIgnoreCase))
+            return;
+
+        var payload = new
+        {
+            pairing_id = selected.Id,
+            pin,
+            name = clientName
+        };
+        using var content = new StringContent(JsonSerializer.Serialize(payload), Encoding.UTF8, "application/json");
+        using var response = await _sunshine!.PostAsync("api/pin", content, ct);
+        string responseText = await response.Content.ReadAsStringAsync(ct);
+        if (!response.IsSuccessStatusCode)
+            throw new HttpRequestException("SUNSHINE_PAIRING_APPROVAL_HTTP_ERROR", null, response.StatusCode);
+
+        bool paired;
+        using (var document = JsonDocument.Parse(string.IsNullOrWhiteSpace(responseText) ? "{}" : responseText))
+        {
+            paired = document.RootElement.TryGetProperty("status", out var status) &&
+                status.ValueKind == JsonValueKind.True;
+        }
+
+        await PostRpc("remote_play_host_pairing_complete", new
+        {
+            p_session_id = sessionId,
+            p_challenge_id = challengeId,
+            p_success = paired,
+            p_sunshine_pairing_id = paired ? selected.Id.ToLowerInvariant() : null,
+            p_failure_reason = paired ? null : "sunshine_pairing_rejected"
+        }, _config.HostToken, ct);
+
+        if (paired)
+            _logger.LogInformation("Sunshine paired the authorized Ani client for session {SessionId}", sessionId);
+        else
+            _logger.LogWarning("Sunshine rejected the authorized Ani pairing challenge for session {SessionId}", sessionId);
+    }
+
+    private async Task<JsonElement> GetSunshinePendingPairings(CancellationToken ct)
+    {
+        using var response = await _sunshine!.GetAsync("api/pin", ct);
+        string text = await response.Content.ReadAsStringAsync(ct);
+        if (!response.IsSuccessStatusCode)
+            throw new HttpRequestException("SUNSHINE_PAIRING_LIST_HTTP_ERROR", null, response.StatusCode);
+        using var document = JsonDocument.Parse(string.IsNullOrWhiteSpace(text) ? "{}" : text);
+        return document.RootElement.Clone();
+    }
+
+    private static string NormalizePeerAddress(string raw)
+    {
+        if (!IPAddress.TryParse(raw, out var address)) return "";
+        if (address.IsIPv4MappedToIPv6) address = address.MapToIPv4();
+        return address.ToString();
     }
 
     private async Task CloseSunshineStream(CancellationToken ct)
