@@ -23,6 +23,11 @@ import com.limelight.nvstream.http.ComputerDetails;
 import org.json.JSONArray;
 import org.json.JSONObject;
 import java.util.Locale;
+import java.net.Inet4Address;
+import java.net.InetAddress;
+import java.net.NetworkInterface;
+import java.net.SocketException;
+import java.util.Enumeration;
 import java.util.UUID;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -119,6 +124,27 @@ public class AniDashboardActivity extends Activity {
         actions.addView(refreshButton,refreshParams);
         content.addView(actions);
 
+        LinearLayout meshCard=card();
+        meshCard.setOrientation(LinearLayout.VERTICAL);
+        meshCard.setPadding(dp(14),dp(12),dp(14),dp(12));
+        TextView meshTitle=label("KONEKSI PRIVAT");
+        meshTitle.setTextColor(Color.rgb(91,230,183));
+        meshCard.addView(meshTitle);
+        TextView meshDescription=normalText(
+            "PC Remote Play memakai Cloudflare Mesh. HP harus sudah terhubung ke organisasi Cloudflare One yang sama dengan PC Host sebelum menekan HUBUNGKAN PC."
+        );
+        meshDescription.setPadding(0,dp(6),0,dp(8));
+        meshCard.addView(meshDescription);
+        Button meshButton=new Button(this);
+        meshButton.setText("BUKA / PASANG CLOUDFLARE ONE");
+        meshButton.setTextColor(Color.WHITE);
+        meshButton.setBackground(rounded(Color.rgb(35,55,80),10));
+        meshButton.setOnClickListener(v->openCloudflareOne());
+        meshCard.addView(meshButton,new LinearLayout.LayoutParams(-1,dp(42)));
+        LinearLayout.LayoutParams meshParams=new LinearLayout.LayoutParams(-1,-2);
+        meshParams.topMargin=dp(12);
+        content.addView(meshCard,meshParams);
+
         TextView pcTitle=new TextView(this);
         pcTitle.setText("PILIH PC GAMING");
         pcTitle.setTextColor(Color.WHITE);
@@ -193,7 +219,7 @@ public class AniDashboardActivity extends Activity {
         }
 
         JSONArray hosts = data.optJSONArray("hosts");
-        content.removeViews(5, content.getChildCount() - 5);
+        if(content.getChildCount()>6) content.removeViews(6, content.getChildCount() - 6);
         if (hosts == null || hosts.length() == 0) {
             messageText.setText("Belum ada PC Remote Play yang diizinkan Admin atau Host Agent belum online.");
             return;
@@ -235,7 +261,11 @@ public class AniDashboardActivity extends Activity {
         String specs="";
         if(!cpu.isEmpty()) specs += cpu;
         if(!gpu.isEmpty()) specs += (specs.isEmpty()?"":" · ")+gpu;
-        TextView detail=normalText(specs.isEmpty()?"Host Agent: "+host.optString("host_agent_version","belum terdeteksi"):specs);
+        String mediaAddress=host.optString("media_address","");
+        String networkStatus=isCloudflareMeshAddress(mediaAddress)
+            ?"Jalur privat: Cloudflare Mesh"
+            :(host.optBoolean("media_path_ready",false)?"Jalur privat tersedia":"Jalur media belum siap");
+        TextView detail=normalText((specs.isEmpty()?"Host Agent: "+host.optString("host_agent_version","terdaftar"):specs)+" • "+networkStatus);
         detail.setPadding(0,dp(8),0,dp(12));
         item.addView(detail);
 
@@ -252,6 +282,16 @@ public class AniDashboardActivity extends Activity {
 
     private void connect(JSONObject host) {
         if(busy) return;
+        String advertisedMediaAddress=host.optString("media_address","");
+        if(isCloudflareMeshAddress(advertisedMediaAddress) && !hasCloudflareMeshAddress()) {
+            new AlertDialog.Builder(this)
+                .setTitle("Cloudflare One belum tersambung")
+                .setMessage("PC menggunakan Cloudflare Mesh, tetapi HP belum memiliki alamat Mesh 100.96.x.x. Buka Cloudflare One Agent, masuk ke organisasi yang sama, aktifkan koneksi VPN, lalu kembali ke Ani Moonlight dan tekan Refresh.")
+                .setPositiveButton("Buka Cloudflare One",(d,w)->openCloudflareOne())
+                .setNegativeButton("Nanti",null)
+                .show();
+            return;
+        }
         String hostId=host.optString("device_id","");
         String name=host.optString("device_name","PC");
         busy=true;
@@ -333,6 +373,50 @@ public class AniDashboardActivity extends Activity {
             @Override public void onServiceDisconnected(ComponentName cls) {}
         };
         bindService(new Intent(this,ComputerManagerService.class),connectionRef[0],Context.BIND_AUTO_CREATE);
+    }
+
+    private static boolean isCloudflareMeshAddress(String value) {
+        if(value==null || value.isEmpty()) return false;
+        String[] parts=value.split("\\.");
+        if(parts.length!=4) return false;
+        try {
+            int a=Integer.parseInt(parts[0]),b=Integer.parseInt(parts[1]);
+            int c=Integer.parseInt(parts[2]),d=Integer.parseInt(parts[3]);
+            return a==100 && b>=96 && b<=111 && c>=0 && c<=255 && d>=0 && d<=255;
+        } catch(NumberFormatException ignored) { return false; }
+    }
+
+    private boolean hasCloudflareMeshAddress() {
+        try {
+            Enumeration<NetworkInterface> interfaces=NetworkInterface.getNetworkInterfaces();
+            if(interfaces==null) return false;
+            while(interfaces.hasMoreElements()) {
+                NetworkInterface network=interfaces.nextElement();
+                try {
+                    if(!network.isUp() || network.isLoopback()) continue;
+                    Enumeration<InetAddress> addresses=network.getInetAddresses();
+                    while(addresses.hasMoreElements()) {
+                        InetAddress address=addresses.nextElement();
+                        if(address instanceof Inet4Address &&
+                           isCloudflareMeshAddress(address.getHostAddress())) return true;
+                    }
+                } catch(SocketException ignored) {}
+            }
+        } catch(SocketException ignored) {}
+        return false;
+    }
+
+    private void openCloudflareOne() {
+        try {
+            Intent intent=new Intent(Intent.ACTION_VIEW,
+                Uri.parse("https://play.google.com/store/apps/details?id=com.cloudflare.cloudflareoneagent"));
+            startActivity(intent);
+        } catch(Exception e) {
+            new AlertDialog.Builder(this)
+                .setTitle("Cloudflare One Agent")
+                .setMessage("Pasang Cloudflare One Agent dari Google Play, lalu hubungkan ke organisasi Cloudflare yang sama dengan PC Host.")
+                .setPositiveButton("OK",null).show();
+        }
     }
 
     private void showTopup() {
