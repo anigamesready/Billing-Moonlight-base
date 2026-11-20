@@ -157,47 +157,62 @@ public class AniDashboardActivity extends Activity {
     }
 
     private void showDashboard(JSONObject data) {
-        JSONObject rental=data.optJSONObject("rental");
-        if(rental!=null) {
-            long remaining=rental.optLong("remaining_seconds",0);
+        JSONObject rental = data.optJSONObject("rental_account");
+        boolean canPlay = false;
+        if (rental != null) {
+            long remaining = rental.optLong("remaining_seconds", 0);
             remainingText.setText(formatSeconds(remaining));
-            expiryText.setText(formatExpiry(rental.optString("expiry_at","")));
-            String state=rental.optString("access_state","unknown");
-            boolean canPlay=rental.optBoolean("can_play",false);
-            statusText.setText(accessLabel(state));
-            statusText.setTextColor(canPlay?Color.rgb(91,230,183):Color.rgb(255,190,100));
-            if(!canPlay && !expiredPopupShown &&
-                    (state.equals("time_empty")||state.equals("expired"))) {
-                expiredPopupShown=true;
+            expiryText.setText(formatExpiry(rental.optString("expiry_at", "")));
+
+            String accountState = rental.optString("status", "unknown");
+            boolean remoteEnabled = data.optBoolean("remote_play_enabled", false);
+            canPlay = data.optBoolean("can_start", false) &&
+                    accountState.equals("active") && remaining > 0 && remoteEnabled;
+
+            String stateLabel;
+            if (!remoteEnabled) stateLabel = "REMOTE PLAY BELUM DIIZINKAN ADMIN";
+            else if (accountState.equals("disabled") || accountState.equals("deleted") ||
+                     accountState.equals("inactive")) stateLabel = "AKUN RENTAL NONAKTIF";
+            else if (remaining <= 0) stateLabel = "BILLING HABIS · TOPUP UNTUK BERMAIN";
+            else if (accountState.equals("expired")) stateLabel = "MASA AKTIF EXPIRED · TOPUP UNTUK BERMAIN";
+            else if (data.optJSONObject("active_session") != null) stateLabel = "SESI REMOTE PLAY SEDANG AKTIF";
+            else stateLabel = canPlay ? "AKUN AKTIF · SIAP BERMAIN" : "AKSES REMOTE PLAY BELUM SIAP";
+
+            statusText.setText(stateLabel);
+            statusText.setTextColor(canPlay ? Color.rgb(91,230,183) : Color.rgb(255,190,100));
+
+            if (!canPlay && !expiredPopupShown &&
+                    (remaining <= 0 || accountState.equals("expired"))) {
+                expiredPopupShown = true;
                 new AlertDialog.Builder(this)
                     .setTitle("Billing habis")
-                    .setMessage("Sisa waktu rental habis atau masa aktif sudah expired. Akses ke semua PC dikunci sampai billing diisi ulang.")
+                    .setMessage("Sisa waktu rental habis atau masa aktif sudah expired. Dashboard tetap bisa dibuka, tetapi akses PC dikunci sampai billing diisi ulang.")
                     .setPositiveButton("Isi ulang sekarang",(d,w)->showTopup())
                     .setNegativeButton("Nanti",null).show();
             }
         }
-        JSONObject r=data.optJSONObject("rental");
-        boolean canPlay=r!=null && r.optBoolean("can_play",false);
-        JSONArray hosts=data.optJSONArray("hosts");
-        content.removeViews(5,content.getChildCount()-5);
-        if(hosts==null || hosts.length()==0) {
-            messageText.setText("Belum ada PC Remote Play yang terdaftar. Host Agent perlu diaktifkan dan didaftarkan oleh Admin.");
+
+        JSONArray hosts = data.optJSONArray("hosts");
+        content.removeViews(5, content.getChildCount() - 5);
+        if (hosts == null || hosts.length() == 0) {
+            messageText.setText("Belum ada PC Remote Play yang diizinkan Admin atau Host Agent belum online.");
             return;
         }
-        messageText.setText(hosts.length()+" PC terdaftar. Status diperbarui dari database pusat.");
-        for(int i=0;i<hosts.length();i++) {
-            JSONObject host=hosts.optJSONObject(i);
-            if(host==null) continue;
-            addHostCard(host,canPlay);
+        messageText.setText(hosts.length() + " PC terdaftar. Status diperbarui dari DB Android.");
+        for (int i = 0; i < hosts.length(); i++) {
+            JSONObject host = hosts.optJSONObject(i);
+            if (host != null) addHostCard(host, canPlay);
         }
     }
 
     private void addHostCard(JSONObject host, boolean canPlay) {
-        String name=host.optString("name","PC Gaming");
-        String state=host.optString("status","offline");
-        String id=host.optString("device_id","");
-        String gpu=host.optJSONObject("metadata")==null?"":host.optJSONObject("metadata").optString("gpu","");
-        String cpu=host.optJSONObject("metadata")==null?"":host.optJSONObject("metadata").optString("cpu","");
+        String name = host.optString("device_name", "PC Gaming");
+        boolean hostOnline = host.optBoolean("online", false);
+        boolean hostAvailable = host.optBoolean("available", false);
+        String state = !hostOnline ? "offline" : hostAvailable ? "available" : "busy";
+        String id = host.optString("device_id", "");
+        String gpu = "";
+        String cpu = "";
         LinearLayout item=card();
         item.setOrientation(LinearLayout.VERTICAL);
         LinearLayout top=new LinearLayout(this);
@@ -238,7 +253,7 @@ public class AniDashboardActivity extends Activity {
     private void connect(JSONObject host) {
         if(busy) return;
         String hostId=host.optString("device_id","");
-        String name=host.optString("name","PC");
+        String name=host.optString("device_name","PC");
         busy=true;
         messageText.setText("Mengunci sesi dan menyiapkan koneksi ke "+name+"...");
         worker.execute(()->{
