@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - feature/ani-remote-play-db-android-v0.2
+      - feature/ani-remote-play-cloudflare-mesh-v0.3
   pull_request:
     branches:
       - main
