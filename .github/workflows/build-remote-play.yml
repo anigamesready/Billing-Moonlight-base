@@ -175,6 +175,11 @@ jobs:
             if (-not $installer.Contains($token)) { throw "Missing required firewall token: $token" }
           }
 
+      - name: Test Cloudflare Mesh Host Agent runtime configuration
+        shell: pwsh
+        run: |
+          dotnet run --project .\\host-agent\\tests\\ConfigSmoke.csproj --configuration Release
+
       - name: Build Windows Host Agent
         shell: pwsh
         run: |
