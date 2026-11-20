@@ -7,13 +7,15 @@ Status: **design / integration work in progress**. This document is not evidence
 | Component | Verified source |
 |---|---|
 | Android streaming engine | Moonlight Android v12.2, commit `b48494cb96bff23d8886c4775cc4f39a1075495d` |
-| Local rental API contract | `anigamesready/PC-Billing`, DB Android source commit `d86e7ecfa82d7af29bb53d067a316984b1fef69b`, `db-android-core/server/server.mjs` |
-| Streaming host | Sunshine (upstream LizardByte project); installer supplied by the user must be treated as an installer, not Ani host-agent source |
+| Latest DB Android API source reviewed | `anigamesready/PC-Billing`, branch `feature/db-android-stop-pause-policy-20261118`, commit `38a75ad85adf60a96a82cd1e7050568119f66a18` |
+| DB Android relay implementation | Same DB Android branch; API gateway and WebSocket control relay code is in the repository |
+| Latest PC Billing compatibility branch reviewed | `feature/pc-v12.4.9-stop-pause-20261118` (must remain separate from the Remote Play host agent) |
+| Streaming host | Sunshine (upstream LizardByte project); installer supplied by the user is not Ani Host Agent source |
 | Workspace | `anigamesready/Billing-Moonlight-base`, branch `feature/remote-play-db-android-v0.1` |
 
-The PC-Billing source contains a Node API implementation and PostgreSQL schema/API migrations for existing Billing, Admin and Reseller functions. The server currently listens on loopback port 8787 by default. The stage setup is separate on port 8788 and a staging database. The API source does **not** currently define Remote Play endpoints or a Remote Play schema.
+The latest DB Android source branch contains the existing local Node API, Billing/Admin/Reseller RPCs, staging setup, API gateways/relay, and migration `012_billing_stop_pause_policy.sql`. The Node API defaults to loopback port 8787; its separate staging package is on port 8788. The inspected API still does **not** define Remote Play customer authentication, host registration/permission, remote session lease, or cooldown functions.
 
-The above is repository evidence. It does not prove that the same commit, migration set, stage tunnel or agent package is installed and online on the user's Redmi today.
+This is repository evidence only. It does not prove the same commit, migration 012, staging tunnel, WebSocket agent, or Worker configuration is installed and online on the Redmi today. The older commit `d86e7ecfa82d7af29bb53d067a316984b1fef69b` was a previous relay-stage snapshot; the newer DB Android branch above is the preferred source reference for the next backend work.
 
 ## 2. System boundaries
 
@@ -57,7 +59,7 @@ Android Moonlight <---- secure routed network / direct peer path ----> Sunshine 
 
 ## 3. Control plane vs media plane
 
-**Control plane** uses the same configured DB Android HTTPS API connection as the current Android apps. It carries customer login, balance/expiry, PC inventory, Admin permissions, host heartbeat, session creation, lease renewal, end-session and audit events. The app must obtain the same API base URL from the shared DB Android connection configuration; do not add a second hardcoded Supabase or database endpoint.
+**Control plane** uses the same configured DB Android HTTPS API connection as the current Android apps. It carries customer login, balance/expiry, PC inventory, Admin permissions, host heartbeat, session creation, lease renewal, end-session and audit events. The app must obtain the same API base URL from the shared DB Android connection configuration; do not add a second hardcoded database endpoint.
 
 The DB Android server has local main/stage addresses of `127.0.0.1:8787` and `127.0.0.1:8788`. Those loopback addresses are not usable by a customer's phone on the internet. Use the already configured, HTTPS-accessible DB Android API endpoint and verify it from a non-Redmi network before enabling customer login. The existing stage Worker / WebSocket relay is an API transport only; it is not a video-stream relay.
 
@@ -102,6 +104,7 @@ Reseller does not receive Remote Play Admin controls, PC Windows commands, or Wo
 - API stays on the same DB Android server and retains its existing bind, database role, TLS/tunnel and secret configuration.
 - New SQL is additive and limited to the `remote_play` schema plus narrowly scoped API functions.
 - Add new API functions to the current Node RPC allowlist; preserve the existing Billing/Admin/Reseller route map and its least-privilege runtime DB role.
+- Do not remove, rename or replay the existing Billing stop/pause policy migration 012. Remote Play migrations are separate and additive.
 - Never modify the live Redmi database as a build step. Test the additive migration on a fresh disposable PostgreSQL database and on a verified staging database first.
 - Never stop or reconfigure the Blynk/WoL relay as part of Remote Play.
 - All host, client, session, credential and admin operations need audit events, rate limits, idempotency keys and revocation support.
