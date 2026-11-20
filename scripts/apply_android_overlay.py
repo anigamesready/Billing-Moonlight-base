@@ -48,10 +48,20 @@ def main() -> None:
     # Distinct app identity. Keep upstream root/non-root flavor behavior intact.
     gradle_path = root / "app/build.gradle"
     gradle = read(gradle_path)
+
     # Compile against the stable Android API level already used as targetSdk.
-    # The pinned upstream checkout currently requests API 37, which is not present
-    # in the supported Android SDK package catalogue used by our reproducible CI.
-    gradle, sdk_count = re.subn(r'(?m)^\\s*compileSdk\\s+37\\s*    # Build-time value must match the existing DB Android HTTPS gateway.
+    # The pinned upstream checkout requests API 37, which is unavailable in the
+    # reproducible CI SDK catalogue; targetSdk remains upstream API 36.
+    gradle, sdk_count = re.subn(
+        r'(?m)^\s*compileSdk\s+37\s*$',
+        '    compileSdk 36',
+        gradle,
+        count=1
+    )
+    if sdk_count != 1:
+        raise RuntimeError("Expected exactly one upstream compileSdk 37 declaration")
+
+    # Build-time value must match the existing DB Android HTTPS gateway.
     # Empty is allowed only for diagnostic builds; the app then fails closed at login.
     api_base = os.environ.get("DB_ANDROID_API_BASE_URL", "").strip().rstrip("/")
     if api_base:
