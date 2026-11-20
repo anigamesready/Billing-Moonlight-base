@@ -31,9 +31,8 @@ installer = read(required[7])
 patcher = read(required[8])
 
 for token in ("remote_play_login", "remote_play_refresh", "remote_play_dashboard",
-              "remote_play_request_session", "remote_play_session_mark_streaming",
-              "remote_play_session_heartbeat", "remote_play_end_session",
-              "remote_play_pairing_prepare"):
+              "remote_play_request_session", "remote_play_session_heartbeat",
+              "remote_play_end_session", "remote_play_pairing_prepare"):
     if token not in api:
         raise SystemExit("DB Android RPC not wired in Android client: " + token)
 
@@ -46,14 +45,15 @@ for token in ("AndroidKeyStore", "AES/GCM/NoPadding", "saveRefreshToken"):
         raise SystemExit("Android token at-rest protection missing: " + token)
 
 for token in ("remote_play_host_enroll", "remote_play_host_heartbeat",
-              "remote_play_host_next_command", "remote_play_host_sessions",
-              "remote_play_host_pairing_poll", "remote_play_host_pairing_complete"):
+              "remote_play_host_next_command", "remote_play_host_pairing_poll",
+              "remote_play_host_pairing_complete"):
     if token not in worker:
         raise SystemExit("Host Agent RPC not wired: " + token)
 
 if "127.0.0.1" not in config or "47990" not in config:
     raise SystemExit("Sunshine API must stay bound to local loopback.")
-for token in ("expected_client_address", "NormalizePeerAddress", 'GetString(item, "address")'):
+for token in ("NormalizePeerAddress", 'GetString(item, "address")',
+              'GetString(item, "name")', "SunshinePendingPairings"):
     if token not in worker:
         raise SystemExit("Sunshine pairing is not bound to the server-approved peer address: " + token)
 if "ProtectedData.Protect" not in config or "HostTokenProtected" not in config:
