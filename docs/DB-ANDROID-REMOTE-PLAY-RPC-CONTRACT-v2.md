@@ -63,7 +63,7 @@ The dashboard must remain available for an expired or empty-balance rental. Only
 | `remote_play_host_next_command` | host | none | Host-scoped pending commands only |
 | `remote_play_host_ack` | host | `p_command_id uuid, p_status text, p_result jsonb` | Idempotent command acknowledgement |
 | `remote_play_host_sessions` | host | none | Active leases assigned to this host only |
-| `remote_play_host_pairing_poll` | host | `p_session_id uuid` | Pairing challenges for this host/session only |
+| `remote_play_host_pairing_poll` | host | `p_session_id uuid` | Pairing challenge for this host/session only, including the server-assigned `expected_client_address` (the exact client WireGuard peer IP) |
 | `remote_play_host_pairing_complete` | host | `p_session_id uuid, p_challenge_id uuid, p_success boolean, p_sunshine_pairing_id text` | Pairing outcome acknowledgement |
 | `remote_play_host_end_session` | host | `p_session_id uuid, p_reason text` | Idempotent host-side close/settlement request |
 
@@ -84,6 +84,8 @@ All checks and state transitions are in PostgreSQL transactions, not only app UI
 9. Lost heartbeats, app termination, host disconnection, explicit stop and hard deadline converge on the same idempotent settle/close path.
 10. Host permission revocation or stale Host Agent heartbeat stops new starts and closes any lease according to the Admin revoke policy.
 11. No customer or Host Agent may access PostgreSQL tables directly.
+
+The Host Agent must compare the Sunshine pending pairing's `address` with the server-issued `expected_client_address` for the active session before it submits the exact `pairing_id`, PIN and client name. Client-reported names are untrusted and must not be used as the sole pairing selector. If the address is missing or differs, the Host Agent must fail closed and not approve the request.
 
 ## Media route contract
 
