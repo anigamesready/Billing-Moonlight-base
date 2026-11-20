@@ -408,9 +408,14 @@ public class AniDashboardActivity extends Activity {
 
     private void openCloudflareOne() {
         try {
-            Intent intent=new Intent(Intent.ACTION_VIEW,
+            Intent installed=getPackageManager().getLaunchIntentForPackage("com.cloudflare.cloudflareoneagent");
+            if(installed!=null) {
+                startActivity(installed);
+                return;
+            }
+            Intent store=new Intent(Intent.ACTION_VIEW,
                 Uri.parse("https://play.google.com/store/apps/details?id=com.cloudflare.cloudflareoneagent"));
-            startActivity(intent);
+            startActivity(store);
         } catch(Exception e) {
             new AlertDialog.Builder(this)
                 .setTitle("Cloudflare One Agent")
