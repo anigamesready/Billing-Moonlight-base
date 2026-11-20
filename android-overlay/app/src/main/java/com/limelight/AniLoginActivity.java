@@ -106,7 +106,7 @@ public class AniLoginActivity extends Activity {
 
         activationPinInput = new EditText(this);
         activationPinInput.setSingleLine(true);
-        activationPinInput.setInputType(InputType.TYPE_CLASS_NUMBER | InputType.TYPE_NUMBER_VARIATION_PASSWORD);
+        activationPinInput.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_PASSWORD);
         activationPinInput.setTextColor(Color.WHITE);
         activationPinInput.setHintTextColor(Color.rgb(111,132,159));
         activationPinInput.setHint("Kode dari Admin");
@@ -153,8 +153,8 @@ public class AniLoginActivity extends Activity {
                 messageView.setText("User ID belum diisi.");
                 return;
             }
-            if(pin.length()<6 || pin.length()>12) {
-                messageView.setText("Kode aktivasi harus 6–12 angka dari Admin.");
+            if(!pin.matches("(?i)[0-9a-f]{16}")) {
+                messageView.setText("Kode aktivasi harus 16 karakter huruf A–F dan angka 0–9 dari Admin.");
                 return;
             }
             hideKeyboard();
@@ -193,9 +193,11 @@ public class AniLoginActivity extends Activity {
         setBusy(true,"Memeriksa User ID dan kode aktivasi...");
         worker.execute(() -> {
             try {
-                String accessToken = AniRemoteApi.newToken();
-                String refreshToken = AniRemoteApi.newToken();
-                JSONObject response = AniRemoteApi.login(this,code,pin,accessToken,refreshToken);
+                JSONObject response = AniRemoteApi.login(this,code,pin);
+                String accessToken = response.optString("access_token","");
+                String refreshToken = response.optString("refresh_token","");
+                if(accessToken.length()!=64 || refreshToken.length()!=64)
+                    throw new IllegalStateException("REMOTE_PLAY_LOGIN_RESPONSE_INVALID");
                 AniSecurePrefs.saveTokenPair(this,accessToken,refreshToken);
                 AniSecurePrefs.setRentalCode(this,code);
                 if (!destroyed) runOnUiThread(() -> openDashboard(code));
@@ -214,7 +216,7 @@ public class AniLoginActivity extends Activity {
             return "Endpoint DB Android belum dipasang pada build. Hubungi Admin.";
         if(error.contains("DB_ANDROID_API_ENDPOINT"))
             return "Konfigurasi server DB Android belum valid. Hubungi Admin.";
-        if(error.contains("REMOTE_PLAY_ACTIVATION_REQUIRED") || error.contains("ACTIVATION_INVALID"))
+        if(error.contains("REMOTE_PLAY_INVALID_CREDENTIALS") || error.contains("REMOTE_PLAY_ACTIVATION_REQUIRED") || error.contains("ACTIVATION_INVALID"))
             return "Kode aktivasi salah, kedaluwarsa, atau sudah digunakan. Minta kode baru ke Admin.";
         if(error.contains("REMOTE_PLAY_DEVICE_ALREADY_BOUND"))
             return "Akun sudah terikat ke perangkat lain. Hubungi Admin untuk reset perangkat.";
