@@ -280,7 +280,8 @@ public class AniDashboardActivity extends Activity {
     }
 
     private void addHostAndOpen(String name,String address,int port,String token,String sessionId) {
-        ServiceConnection connection=new ServiceConnection() {
+        final ServiceConnection[] connectionRef = new ServiceConnection[1];
+        connectionRef[0] = new ServiceConnection() {
             @Override public void onServiceConnected(ComponentName cls, IBinder binder) {
                 ComputerManagerService.ComputerManagerBinder manager=(ComputerManagerService.ComputerManagerBinder)binder;
                 new Thread(()->{
@@ -300,7 +301,7 @@ public class AniDashboardActivity extends Activity {
                             }
                         }
                         runOnUiThread(()->{
-                            try { unbindService(connection); } catch(Exception ignored) {}
+                            try { unbindService(connectionRef[0]); } catch(Exception ignored) {}
                             messageText.setText("PC terhubung. Ketuk PC yang dipilih untuk memulai pairing otomatis.");
                             startActivity(new Intent(AniDashboardActivity.this, PcView.class));
                         });
@@ -316,7 +317,7 @@ public class AniDashboardActivity extends Activity {
             }
             @Override public void onServiceDisconnected(ComponentName cls) {}
         };
-        bindService(new Intent(this,ComputerManagerService.class),connection,Context.BIND_AUTO_CREATE);
+        bindService(new Intent(this,ComputerManagerService.class),connectionRef[0],Context.BIND_AUTO_CREATE);
     }
 
     private void showTopup() {
