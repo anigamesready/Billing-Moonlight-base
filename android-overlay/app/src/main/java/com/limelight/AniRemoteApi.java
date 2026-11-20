@@ -10,8 +10,6 @@ import java.net.HttpURLConnection;
 import java.net.URI;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
-import java.security.SecureRandom;
 import java.util.Locale;
 
 /**
@@ -21,7 +19,6 @@ import java.util.Locale;
 public final class AniRemoteApi {
     private static final int CONNECT_TIMEOUT_MS = 8000;
     private static final int READ_TIMEOUT_MS = 12000;
-    private static final SecureRandom RANDOM = new SecureRandom();
 
     private AniRemoteApi() {}
 
@@ -106,42 +103,6 @@ public final class AniRemoteApi {
             int count;
             while ((count = in.read(buffer)) != -1) out.write(buffer, 0, count);
             return out.toString("UTF-8");
-        }
-    }
-
-    public static String newToken() {
-        byte[] bytes = new byte[32];
-        RANDOM.nextBytes(bytes);
-        StringBuilder value = new StringBuilder(64);
-        for (byte b : bytes) value.append(String.format(Locale.US, "%02x", b & 0xff));
-        return value.toString();
-    }
-
-    private static String sha256(String input) throws Exception {
-        byte[] digest = MessageDigest.getInstance("SHA-256")
-                .digest(input.getBytes(StandardCharsets.UTF_8));
-        StringBuilder value = new StringBuilder(digest.length * 2);
-        for (byte b : digest) value.append(String.format(Locale.US, "%02x", b & 0xff));
-        return value.toString();
-    }
-
-    private static JSONObject authenticated(Context context, String function, JSONObject body) throws Exception {
-        String access = AniSecurePrefs.getClientToken(context);
-        if (access == null || access.length() != 64) {
-            throw new ApiException(401, "REMOTE_PLAY_TOKEN_REQUIRED");
-        }
-        try {
-            return rpc(function, body, access);
-        } catch (ApiException expired) {
-            String code = expired.errorCode == null ? "" : expired.errorCode;
-            if (expired.statusCode != 401 || !code.contains("TOKEN_EXPIRED")) throw expired;
-            String oldRefresh = AniSecurePrefs.getRefreshToken(context);
-            if (oldRefresh == null || oldRefresh.length() != 64) throw expired;
-            String newAccess = newToken();
-            String newRefresh = newToken();
-            refresh(oldRefresh, newAccess, newRefresh);
-            AniSecurePrefs.saveTokenPair(context, newAccess, newRefresh);
-            return rpc(function, body, newAccess);
         }
     }
 
