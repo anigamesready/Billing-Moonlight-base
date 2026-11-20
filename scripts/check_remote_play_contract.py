@@ -39,6 +39,11 @@ for token in ("remote_play_login", "remote_play_refresh", "remote_play_dashboard
 for token in ("USER ID RENTAL", "KODE AKTIVASI REMOTE PLAY", "AniRemoteApi.login"):
     if token not in login:
         raise SystemExit("Activation-code login incomplete: " + token)
+dashboard = read("android-overlay/app/src/main/java/com/limelight/AniDashboardActivity.java")
+for token in ("hasCloudflareMeshAddress()", "100.96.x.x",
+              "com.cloudflare.cloudflareoneagent", "media_address"):
+    if token not in dashboard:
+        raise SystemExit("Android Cloudflare Mesh preflight is missing: " + token)
 
 for token in ("AndroidKeyStore", "AES/GCM/NoPadding", "saveRefreshToken"):
     if token not in secure:
