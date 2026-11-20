@@ -56,7 +56,7 @@ function Protect-LocalMachine([string]$value) {
 $random = [Security.Cryptography.RandomNumberGenerator]::Create()
 $tokenBytes = New-Object byte[] 32
 $random.GetBytes($tokenBytes)
-$hostToken = [Convert]::ToHexString($tokenBytes).ToLowerInvariant()
+$hostToken = [BitConverter]::ToString($tokenBytes).Replace('-', '').ToLowerInvariant()
 [Array]::Clear($tokenBytes, 0, $tokenBytes.Length)
 $random.Dispose()
 
