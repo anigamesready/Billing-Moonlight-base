@@ -5,9 +5,9 @@ Isolated integration workspace for the Ani Games Ready Moonlight/Sunshine remote
 ## Technology baseline
 
 - Android streaming engine: upstream [Moonlight Android](https://github.com/moonlight-stream/moonlight-android), tag `v12.2`, commit `b48494cb96bff23d8886c4775cc4f39a1075495d`.
-- Windows streaming host: upstream [Sunshine](https://github.com/LizardByte/Sunshine).
+- Windows streaming host: upstream [Sunshine](https://github.com/LizardByte/Sunshine), minimum pairing-safe baseline v2026.906.222525 (later versions recommended).
 - User, rental balance, PC inventory, authorization and session control: the existing **Ani Games Ready DB Android** Node API + PostgreSQL on the Redmi/Termux server.
-- Windows per-PC service: a separate Ani Remote Play Host Agent (to be implemented).
+- Windows per-PC service: separate Ani Remote Play Host Agent source in host-agent/; CI build succeeds, but on-PC deployment/runtime checks remain pending.
 
 ## Database rule — do not use Supabase
 
@@ -34,10 +34,10 @@ The DB Android HTTPS API is the **control plane** only (login, inventory, permis
 
 ## Build status
 
-This repository started as a README-only workspace. The current branch begins the audited integration contract; it is not yet a buildable or releasable APK/EXE. See:
+This repository began as a README-only workspace. The isolated branch feature/ani-remote-play-db-android-v0.2 now contains an Android Moonlight overlay, DB Android RPC adapter, activation-PIN login, Android Keystore token storage, a Windows Host Agent and CI build definitions. Static checks pass and the Windows Host Agent has compiled in CI. The Android overlay has been applied successfully in CI; Gradle compilation is still under verification. No customer release exists yet: DB Android Remote Play RPCs are only specified in the companion contract, the stable public API URL is not verified, and WireGuard remains a preconfigured media-route assumption—not an implemented P2P/relay system. See:
 
 - [Architecture](docs/ARCHITECTURE.md)
-- [DB Android API contract](docs/DB-ANDROID-API-CONTRACT.md)
+- [DB Android Remote Play RPC contract v2](docs/DB-ANDROID-REMOTE-PLAY-RPC-CONTRACT-v2.md)
 - [Build and verification gates](docs/BUILD-AND-VERIFICATION.md)
 
-Do not label an artifact final until the API additions, Android client, Windows Host Agent, network path, CI builds and end-to-end tests all pass.
+Do not label any artifact final until DB Android RPCs are deployed and tested in staging, Android and Windows builds pass, the existing HTTPS gateway is configured, Sunshine pairing is tested, GameStream TCP+UDP works over the chosen network path, and the 3-hour cap, 10-minute cooldown, shared Billing lock and end-to-end regressions pass. CI debug APKs are diagnostic only.
