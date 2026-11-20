@@ -63,7 +63,7 @@ public final class AniSessionController {
 
         WORKER.execute(() -> {
             try {
-                JSONObject result = AniRemoteApi.markActive(clientToken, session);
+                JSONObject result = AniRemoteApi.markActive(activity, session);
                 if (!result.optBoolean("ok", false)) throw new IllegalStateException("SESSION_ACTIVATION_DENIED");
                 long deadline = OffsetDateTime.parse(result.getString("deadline_at")).toInstant().toEpochMilli();
                 long serverNow = OffsetDateTime.parse(result.getString("server_time")).toInstant().toEpochMilli();
@@ -95,7 +95,7 @@ public final class AniSessionController {
     private static void sendHeartbeat() {
         if (!running || activeSessionId.isEmpty() || clientToken.isEmpty()) return;
         try {
-            JSONObject response = AniRemoteApi.heartbeat(clientToken, activeSessionId);
+            JSONObject response = AniRemoteApi.heartbeat(activityRef.get(), activeSessionId);
             if (response.optBoolean("stop_stream", false)) {
                 running = false;
                 MAIN.post(() -> {
@@ -171,7 +171,7 @@ public final class AniSessionController {
         stopLoops();
         WORKER.execute(() -> {
             try {
-                AniRemoteApi.stopSession(token, sessionToStop, reason == null ? "stream_stopped" : reason);
+                AniRemoteApi.stopSession(activity, sessionToStop, reason == null ? "stream_stopped" : reason);
                 AniSecurePrefs.clearActiveSession(activity);
                 activeSessionId = "";
                 clientToken = "";
@@ -194,7 +194,7 @@ public final class AniSessionController {
         }
         WORKER.execute(() -> {
             try {
-                AniRemoteApi.stopSession(token, session, "client_restarted");
+                AniRemoteApi.stopSession(activity, session, "client_restarted");
                 AniSecurePrefs.clearActiveSession(activity);
             } catch (Exception ignored) {}
         });
