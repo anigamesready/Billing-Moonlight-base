@@ -49,18 +49,24 @@ public sealed class HostAgentConfig
             apiUri.Host.Contains("supabase.co", StringComparison.OrdinalIgnoreCase))
             throw new InvalidDataException("API harus memakai HTTPS gateway DB Android stabil yang sama dengan aplikasi Ani.");
 
-        if (string.IsNullOrWhiteSpace(config.HostToken) ||
-            config.HostToken.Length != 64 ||
-            !config.HostToken.All(Uri.IsHexDigit))
-            throw new InvalidDataException("Host token Windows tidak valid.");
-
-        if (!config.Enrolled && string.IsNullOrWhiteSpace(config.EnrollmentCode))
+        if (config.Enrolled)
+        {
+            if (string.IsNullOrWhiteSpace(config.HostToken) ||
+                config.HostToken.Length != 64 ||
+                !config.HostToken.All(Uri.IsHexDigit))
+                throw new InvalidDataException("Host token Windows tidak valid.");
+        }
+        else if (string.IsNullOrWhiteSpace(config.EnrollmentCode))
+        {
             throw new InvalidDataException("Kode enrollment Admin belum tersedia.");
+        }
 
-        if (string.IsNullOrWhiteSpace(config.MediaAddress) ||
-            config.MediaAddress.Length > 255 ||
-            config.MediaAddress.Contains('/') || config.MediaAddress.Contains('\\'))
-            throw new InvalidDataException("MediaAddress harus berupa alamat rute host yang sudah disiapkan Admin.");
+        if (!System.Net.IPAddress.TryParse(config.MediaAddress, out var mediaIp) ||
+            !(mediaIp.IsIPv6 ? (mediaIp.GetAddressBytes()[0] & 0xfe) == 0xfc :
+                mediaIp.GetAddressBytes()[0] == 10 ||
+                (mediaIp.GetAddressBytes()[0] == 172 && mediaIp.GetAddressBytes()[1] >= 16 && mediaIp.GetAddressBytes()[1] <= 31) ||
+                (mediaIp.GetAddressBytes()[0] == 192 && mediaIp.GetAddressBytes()[1] == 168)))
+            throw new InvalidDataException("MediaAddress wajib berupa IP privat WireGuard/VPN yang diterima DB Android.");
         if (config.MediaPort is < 1 or > 65535)
             throw new InvalidDataException("MediaPort tidak valid.");
         if (!string.Equals(config.MediaTransport, "wireguard", StringComparison.OrdinalIgnoreCase))
