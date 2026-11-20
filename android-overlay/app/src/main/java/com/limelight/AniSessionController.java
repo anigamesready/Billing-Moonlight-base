@@ -93,9 +93,11 @@ public final class AniSessionController {
     }
 
     private static void sendHeartbeat() {
-        if (!running || activeSessionId.isEmpty() || clientToken.isEmpty()) return;
+        Activity activity = activityRef.get();
+        if (!running || activeSessionId.isEmpty() || clientToken.isEmpty() ||
+                activity == null || activity.isFinishing()) return;
         try {
-            JSONObject response = AniRemoteApi.heartbeat(activityRef.get(), activeSessionId);
+            JSONObject response = AniRemoteApi.heartbeat(activity, activeSessionId);
             if (response.optBoolean("stop_stream", false)) {
                 running = false;
                 MAIN.post(() -> {
