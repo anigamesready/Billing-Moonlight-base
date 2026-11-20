@@ -53,6 +53,9 @@ for token in ("remote_play_host_enroll", "remote_play_host_heartbeat",
 
 if "127.0.0.1" not in config or "47990" not in config:
     raise SystemExit("Sunshine API must stay bound to local loopback.")
+for token in ("expected_client_address", "NormalizePeerAddress", 'GetString(item, "address")'):
+    if token not in worker:
+        raise SystemExit("Sunshine pairing is not bound to the server-approved peer address: " + token)
 if "ProtectedData.Protect" not in config or "HostTokenProtected" not in config:
     raise SystemExit("Host Agent token must be protected using Windows DPAPI.")
 if "DB_ANDROID_API_BASE_URL" not in patcher or "supabase.co" not in patcher:
