@@ -152,10 +152,17 @@ public sealed class HostAgentWorker : BackgroundService
             if (!response.IsSuccessStatusCode) return false;
             string text = await response.Content.ReadAsStringAsync(ct);
             using var document = JsonDocument.Parse(text);
-            return document.RootElement.ValueKind == JsonValueKind.Array ||
-                   (document.RootElement.ValueKind == JsonValueKind.Object &&
-                    document.RootElement.TryGetProperty("apps", out var apps) &&
-                    apps.ValueKind == JsonValueKind.Array);
+            bool appsReady = document.RootElement.ValueKind == JsonValueKind.Array ||
+                (document.RootElement.ValueKind == JsonValueKind.Object &&
+                 document.RootElement.TryGetProperty("apps", out var apps) &&
+                 apps.ValueKind == JsonValueKind.Array);
+            if (!appsReady) return false;
+
+            // Only Sunshine versions with the request-scoped pairing_id API may accept
+            // Remote Play sessions. Older /api/pin behavior is not safe to auto-approve.
+            JsonElement pairingApi = await GetSunshinePendingPairings(ct);
+            return pairingApi.TryGetProperty("pairings", out var pairings) &&
+                   pairings.ValueKind == JsonValueKind.Array;
         }
         catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or JsonException)
         {
