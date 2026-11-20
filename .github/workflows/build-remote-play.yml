@@ -155,6 +155,25 @@ jobs:
         with:
           dotnet-version: "8.0.x"
 
+      - name: Parse Host Agent installer and enforce firewall scope
+        shell: pwsh
+        run: |
+          $tokens = $null
+          $errors = $null
+          [System.Management.Automation.Language.Parser]::ParseFile(
+            (Resolve-Path .\\host-agent\\install-host-agent.ps1),
+            [ref]$tokens,
+            [ref]$errors
+          ) | Out-Null
+          if ($errors.Count -gt 0) {
+            $errors | ForEach-Object { Write-Error $_.Message }
+            throw "Host Agent installer has PowerShell syntax errors."
+          }
+          $installer = Get-Content .\\host-agent\\install-host-agent.ps1 -Raw
+          foreach ($token in @("100.96.0.0/12", "Cloudflare Mesh TCP", "Cloudflare Mesh UDP", "47990")) {
+            if (-not $installer.Contains($token)) { throw "Missing required firewall token: $token" }
+          }
+
       - name: Build Windows Host Agent
         shell: pwsh
         run: |
