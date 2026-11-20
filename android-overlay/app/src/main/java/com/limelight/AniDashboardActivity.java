@@ -142,8 +142,7 @@ public class AniDashboardActivity extends Activity {
         messageText.setText("Mengambil status rental dan seluruh PC...");
         worker.execute(()->{
             try {
-                String token=AniSecurePrefs.getClientToken(this);
-                JSONObject response=AniRemoteApi.listHosts(token);
+                JSONObject response=AniRemoteApi.listHosts(this);
                 runOnUiThread(()->{
                     busy=false;
                     showDashboard(response);
@@ -249,8 +248,8 @@ public class AniDashboardActivity extends Activity {
                 token=AniSecurePrefs.getClientToken(this);
                 started=AniRemoteApi.startSession(token,hostId,UUID.randomUUID().toString());
                 String sessionId=started.optString("session_id","");
-                String address=started.optString("tunnel_address","");
-                int port=started.optInt("tunnel_port",47989);
+                String address=started.optString("media_address","");
+                int port=started.optInt("media_port",47989);
                 if(sessionId.isEmpty() || address.isEmpty()) {
                     try { if(!sessionId.isEmpty()) AniRemoteApi.stopSession(token,sessionId,"host_route_unavailable"); } catch(Exception ignored) {}
                     throw new Exception("HOST_AGENT_OR_ROUTE_NOT_READY");
@@ -273,7 +272,7 @@ public class AniDashboardActivity extends Activity {
                 runOnUiThread(()->{
                     busy=false;
                     messageText.setText(e.getMessage()!=null && e.getMessage().contains("HOST_AGENT_OR_ROUTE_NOT_READY")
-                        ?"PC belum punya rute VPN/P2P yang terdaftar. Host Agent belum siap."
+                        ?"PC belum memiliki rute media TCP/UDP yang aktif. Host Agent belum siap."
                         :"Gagal memulai sesi: "+(e.getMessage()==null?"REMOTE_PLAY_ERROR":e.getMessage()));
                 });
             }
