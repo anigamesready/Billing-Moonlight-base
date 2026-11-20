@@ -137,4 +137,4 @@ sc.exe create $serviceName binPath= $serviceBin start= auto DisplayName= "Ani Ga
 sc.exe description $serviceName "Connects approved Ani Remote Play sessions to local Sunshine." | Out-Null
 Start-Service $serviceName
 Write-Host "Ani Games Ready Host Agent installed. Admin enrollment and live heartbeat must succeed before the PC is shown as available." -ForegroundColor Green
-Write-Host "Note: WireGuard media routing must already be configured; the DB HTTPS gateway does not carry game traffic."
+Write-Host "Note: Cloudflare Mesh requires both devices enrolled and connected to the same Zero Trust organization; WireGuard requires its private route to be configured. The DB HTTPS gateway does not carry game traffic."
