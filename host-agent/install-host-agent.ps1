@@ -26,15 +26,33 @@ if ([string]::IsNullOrWhiteSpace($enrollmentCode) -or $enrollmentCode.Length -lt
     throw "Kode enrollment Admin tidak valid."
 }
 
-$mediaAddress = Read-Host "Alamat IP/hostname WireGuard PC ini yang dapat dijangkau HP"
-if ([string]::IsNullOrWhiteSpace($mediaAddress) -or $mediaAddress.Contains("/") -or $mediaAddress.Contains("\")) {
-    throw "Alamat rute WireGuard tidak valid."
-}
-$mediaPortText = Read-Host "Port host yang dipakai Moonlight untuk discovery/API [47989]"
-if ([string]::IsNullOrWhiteSpace($mediaPortText)) { $mediaPortText = "47989" }
-$mediaPort = 0
-if (-not [int]::TryParse($mediaPortText, [ref]$mediaPort) -or $mediaPort -lt 1 -or $mediaPort -gt 65535) {
-    throw "Port tidak valid."
+$mediaChoice = Read-Host "Media route [M] Cloudflare Mesh (default) / [W] WireGuard manual"
+if ([string]::IsNullOrWhiteSpace($mediaChoice) -or $mediaChoice.Trim().ToUpperInvariant() -eq "M") {
+    $mediaTransport = "cloudflare_mesh"
+    $mediaAddress = ""
+    $mediaPort = 47989
+    $warpService = Get-Service -Name "CloudflareWARP" -ErrorAction SilentlyContinue
+    if (-not $warpService) {
+        Write-Warning "Cloudflare One Client belum terdeteksi. Install client resmi, lalu enroll PC ini pada organisasi yang sama dengan HP."
+        Write-Host "Unduhan resmi: https://developers.cloudflare.com/cloudflare-one/team-and-resources/devices/cloudflare-one-client/download/" -ForegroundColor Yellow
+        Write-Host "Host Agent akan tetap terpasang, tetapi PC belum tampil tersedia sampai adapter Mesh aktif." -ForegroundColor Yellow
+    } else {
+        Write-Host "Cloudflare One Client terdeteksi. IP Mesh akan dicari otomatis oleh Host Agent." -ForegroundColor Green
+    }
+} elseif ($mediaChoice.Trim().ToUpperInvariant() -eq "W") {
+    $mediaTransport = "wireguard"
+    $mediaAddress = Read-Host "Alamat IP privat WireGuard PC ini yang dapat dijangkau HP"
+    if ([string]::IsNullOrWhiteSpace($mediaAddress) -or $mediaAddress.Contains("/") -or $mediaAddress.Contains("\")) {
+        throw "Alamat rute WireGuard tidak valid."
+    }
+    $mediaPortText = Read-Host "Port host yang dipakai Moonlight [47989]"
+    if ([string]::IsNullOrWhiteSpace($mediaPortText)) { $mediaPortText = "47989" }
+    $mediaPort = 0
+    if (-not [int]::TryParse($mediaPortText, [ref]$mediaPort) -or $mediaPort -lt 1 -or $mediaPort -gt 65535) {
+        throw "Port tidak valid."
+    }
+} else {
+    throw "Pilihan media route tidak dikenal. Pilih M atau W."
 }
 
 $sunshineBase = "https://127.0.0.1:47990"
@@ -46,6 +64,42 @@ try { $sunshinePassword = [Runtime.InteropServices.Marshal]::PtrToStringBSTR($bs
 finally { [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($bstr) }
 
 Add-Type -AssemblyName System.Security
+# Restrict Sunshine GameStream inbound traffic to enrolled Cloudflare Mesh peers.
+# GameStream ports match the pinned Moonlight Android client: TCP 47984/47989/48010,
+# UDP 47998/47999/48000/48010. The Sunshine Web UI/API port 47990 is never opened.
+if ($mediaTransport -eq "cloudflare_mesh") {
+    $meshCidr = "100.96.0.0/12"
+    try {
+        # Narrow existing Sunshine application allow-rules so an older broad
+        # installer exception does not accidentally expose the host to the WAN.
+        $sunshineExe = Join-Path $env:ProgramFiles "Sunshine\sunshine.exe"
+        if (Test-Path $sunshineExe) {
+            $candidates = Get-NetFirewallRule -Direction Inbound -Action Allow -Enabled True -ErrorAction SilentlyContinue
+            foreach ($rule in $candidates) {
+                $appFilter = $rule | Get-NetFirewallApplicationFilter -ErrorAction SilentlyContinue
+                if ($appFilter -and $appFilter.Program -and
+                    [string]::Equals($appFilter.Program, $sunshineExe, [StringComparison]::OrdinalIgnoreCase)) {
+                    $rule | Get-NetFirewallAddressFilter | Set-NetFirewallAddressFilter -RemoteAddress $meshCidr
+                }
+            }
+        }
+
+        foreach ($name in @(
+            "Ani Remote Play Cloudflare Mesh TCP",
+            "Ani Remote Play Cloudflare Mesh UDP",
+            "Ani Remote Play Block Sunshine Web UI from Mesh"
+        )) {
+            Get-NetFirewallRule -DisplayName $name -ErrorAction SilentlyContinue | Remove-NetFirewallRule
+        }
+        New-NetFirewallRule -DisplayName "Ani Remote Play Cloudflare Mesh TCP" -Direction Inbound -Action Allow -Enabled True -Profile Any -Protocol TCP -LocalPort 47984,47989,48010 -RemoteAddress $meshCidr | Out-Null
+        New-NetFirewallRule -DisplayName "Ani Remote Play Cloudflare Mesh UDP" -Direction Inbound -Action Allow -Enabled True -Profile Any -Protocol UDP -LocalPort 47998,47999,48000,48010 -RemoteAddress $meshCidr | Out-Null
+        New-NetFirewallRule -DisplayName "Ani Remote Play Block Sunshine Web UI from Mesh" -Direction Inbound -Action Block -Enabled True -Profile Any -Protocol TCP -LocalPort 47990 -RemoteAddress $meshCidr | Out-Null
+        Write-Host "Firewall GameStream dibatasi ke Cloudflare Mesh 100.96.0.0/12. Port Web UI/API Sunshine 47990 tidak dibuka." -ForegroundColor Green
+    } catch {
+        throw "Gagal mengatur Windows Firewall Cloudflare Mesh dengan aman: $($_.Exception.Message)"
+    }
+}
+
 function Protect-LocalMachine([string]$value) {
     $bytes = [Text.Encoding]::UTF8.GetBytes($value)
     $protected = [Security.Cryptography.ProtectedData]::Protect(
@@ -62,7 +116,7 @@ $config = @{
     Enrolled = $false
     MediaAddress = $mediaAddress.Trim()
     MediaPort = $mediaPort
-    MediaTransport = "wireguard"
+    MediaTransport = $mediaTransport
     SunshineApiBaseUrl = $sunshineBase
     SunshineUsername = $sunshineUser
     SunshinePasswordProtected = Protect-LocalMachine $sunshinePassword
