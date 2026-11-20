@@ -151,6 +151,30 @@ public final class AniRemoteApi {
         return rpc("remote_play_dashboard", new JSONObject(), clientToken);
     }
 
+    /** Refreshes an expired customer token once, then retries the dashboard request. */
+    public static JSONObject listHosts(Context context) throws Exception {
+        String token = AniSecurePrefs.getClientToken(context);
+        if (token == null || token.length() != 64) {
+            throw new ApiException(401, "REMOTE_PLAY_TOKEN_REQUIRED");
+        }
+        try {
+            return listHosts(token);
+        } catch (ApiException expired) {
+            if (expired.statusCode != 401 ||
+                    !(expired.errorCode.contains("TOKEN_EXPIRED") ||
+                      expired.errorCode.contains("TOKEN_INVALID"))) {
+                throw expired;
+            }
+            String oldRefresh = AniSecurePrefs.getRefreshToken(context);
+            if (oldRefresh == null || oldRefresh.length() != 64) throw expired;
+            String newAccess = newToken();
+            String newRefresh = newToken();
+            refresh(oldRefresh, newAccess, newRefresh);
+            AniSecurePrefs.saveTokenPair(context, newAccess, newRefresh);
+            return listHosts(newAccess);
+        }
+    }
+
     public static JSONObject startSession(String clientToken, String hostDeviceId,
                                           String idempotencyKey) throws Exception {
         JSONObject body = new JSONObject();
