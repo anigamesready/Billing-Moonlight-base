@@ -74,7 +74,9 @@ jobs:
         run: |
           # setup-android already accepted SDK licenses. Do not pipe "yes":
           # sdkmanager may exit early after licenses are accepted, causing SIGPIPE.
-          sdkmanager "platform-tools" "platforms;android-36" "build-tools;36.0.0" "ndk;29.0.14206865"
+          # The pinned Moonlight v12.2 source uses Android 17 (API 37) APIs.
+          # Install the Cinnamon Bun preview platform and matching Build Tools.
+          sdkmanager --channel=3 "platform-tools" "platforms;android-37" "build-tools;37.0.0" "ndk;29.0.14206865"
 
       - name: Validate and apply Ani overlay
         shell: bash
@@ -116,7 +118,7 @@ jobs:
           test -n "$APK"
           mkdir -p dist/android
           cp "$APK" dist/android/Ani-Moonlight-Android-Diagnostic.apk
-          "$ANDROID_HOME/build-tools/36.0.0/aapt" dump badging dist/android/Ani-Moonlight-Android-Diagnostic.apk | grep "package: name='id.anigamesready.moonlight.debug'"
+          "$ANDROID_HOME/build-tools/37.0.0/aapt" dump badging dist/android/Ani-Moonlight-Android-Diagnostic.apk | grep "package: name='id.anigamesready.moonlight.debug'"
           if [ -n "$DB_ANDROID_API_BASE_URL" ]; then
             echo "DB Android endpoint is supplied through the repository variable." > dist/android/ENDPOINT-STATUS.txt
           else
