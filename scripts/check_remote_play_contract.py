@@ -34,7 +34,8 @@ patcher = read(required[8])
 
 for token in ("remote_play_login", "remote_play_refresh", "remote_play_dashboard",
               "remote_play_request_session", "remote_play_session_heartbeat",
-              "remote_play_end_session", "remote_play_pairing_prepare"):
+              "remote_play_end_session", "remote_play_pairing_prepare",
+              "remote_play_session_connected"):
     if token not in api:
         raise SystemExit("DB Android RPC not wired in Android client: " + token)
 
@@ -55,6 +56,8 @@ for token in ("CONNECTING_TIMEOUT_MS", "sendConnectingHeartbeat",
     if token not in controller:
         raise SystemExit("Android pairing lease heartbeat is incomplete: " + token)
 
+if "AniRemoteApi.markStreamConnected(activity, session)" not in controller:
+    raise SystemExit("Android must start billing only after the GameStream connection callback.")
 for token in ("Runnable onComplete", "postStopCompletion"):
     if token not in controller:
         raise SystemExit("Session stop completion callback is missing: " + token)
