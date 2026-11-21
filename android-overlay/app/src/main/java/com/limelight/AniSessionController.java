@@ -30,8 +30,36 @@ public final class AniSessionController {
     private static WeakReference<TextView> timerRef = new WeakReference<>(null);
     private static ScheduledFuture<?> ticker;
     private static ScheduledFuture<?> heartbeat;
+    private static ScheduledFuture<?> connectingHeartbeat;
+    private static volatile boolean connecting;
+    private static volatile long connectingDeadlineMillis;
+    private static final long CONNECTING_TIMEOUT_MS = TimeUnit.MINUTES.toMillis(5);
 
     private AniSessionController() {}
+
+    /** Keep the server lease alive while Moonlight is pairing/starting the game. */
+    public static void beginConnecting(Activity activity, String sessionId) throws Exception {
+        if (activity == null || sessionId == null || sessionId.isEmpty()) {
+            throw new IllegalArgumentException("REMOTE_CONNECT_SESSION_INVALID");
+        }
+        String token = AniSecurePrefs.getClientToken(activity);
+        if (token == null || token.length() != 64) {
+            throw new IllegalStateException("REMOTE_PLAY_TOKEN_REQUIRED");
+        }
+        stopLoops();
+        activeSessionId = sessionId;
+        clientToken = token;
+        activityRef = new WeakReference<>(activity);
+        running = false;
+        connectingDeadlineMillis = System.currentTimeMillis() + CONNECTING_TIMEOUT_MS;
+        connecting = true;
+        connectingHeartbeat = WORKER.scheduleAtFixedRate(
+                AniSessionController::sendConnectingHeartbeat, 15, 20, TimeUnit.SECONDS);
+    }
+
+    public static boolean isConnecting() {
+        return connecting && activeSessionId != null && !activeSessionId.isEmpty();
+    }
 
     public static void onStreamConnected(Activity activity, TextView timerView) {
         final String session = AniSecurePrefs.getActiveSession(activity);
@@ -39,6 +67,7 @@ public final class AniSessionController {
             // Normal Moonlight launch outside Ani Remote Play.
             return;
         }
+        stopConnectingHeartbeat();
         try {
             clientToken = AniSecurePrefs.getClientToken(activity);
         } catch (Exception e) {
@@ -94,6 +123,51 @@ public final class AniSessionController {
                 0, 1, TimeUnit.SECONDS);
         heartbeat = WORKER.scheduleAtFixedRate(AniSessionController::sendHeartbeat,
                 10, 10, TimeUnit.SECONDS);
+    }
+
+    private static void sendConnectingHeartbeat() {
+        if (!connecting || activeSessionId == null || activeSessionId.isEmpty()) return;
+        Activity activity = activityRef.get();
+        if (activity == null || activity.isFinishing()) return;
+        if (System.currentTimeMillis() >= connectingDeadlineMillis) {
+            stopConnectingSession(activity, "connection_timeout");
+            return;
+        }
+        try {
+            JSONObject response = AniRemoteApi.heartbeat(activity, activeSessionId);
+            String state = response.optString("status", "");
+            long remaining = response.optLong("remaining_seconds", 0);
+            if (!response.optBoolean("ok", false) || response.optBoolean("settled", false) ||
+                    remaining <= 0 || !(state.equals("starting") || state.equals("active"))) {
+                stopConnectingSession(activity, "connection_lease_lost");
+            }
+        } catch (Exception ignored) {
+            // A transient API outage is tolerated; the independent host watchdog remains authoritative.
+        }
+    }
+
+    private static void stopConnectingSession(Activity activity, String reason) {
+        final String session = activeSessionId;
+        stopConnectingHeartbeat();
+        running = false;
+        if (session == null || session.isEmpty()) return;
+        WORKER.execute(() -> {
+            try {
+                AniRemoteApi.stopSession(activity, session, reason);
+            } catch (Exception ignored) {}
+            try {
+                AniSecurePrefs.clearActiveSession(activity);
+            } catch (Exception ignored) {}
+            if (session.equals(activeSessionId)) {
+                activeSessionId = "";
+                clientToken = "";
+            }
+            MAIN.post(() -> {
+                if (!activity.isFinishing()) {
+                    Toast.makeText(activity, "Waktu persiapan koneksi habis. Silakan kembali dan pilih PC lagi.", Toast.LENGTH_LONG).show();
+                }
+            });
+        });
     }
 
     private static void sendHeartbeat() {
@@ -167,6 +241,8 @@ public final class AniSessionController {
     }
 
     public static void stop(Activity activity, String reason) {
+        connecting = false;
+        connectingDeadlineMillis = 0;
         String session = activeSessionId;
         if (session == null || session.isEmpty()) {
             session = AniSecurePrefs.getActiveSession(activity);
@@ -197,6 +273,10 @@ public final class AniSessionController {
     }
 
     public static void recoverBeforeDashboard(Activity activity) {
+        connecting = false;
+        connectingDeadlineMillis = 0;
+        running = false;
+        stopLoops();
         String session = AniSecurePrefs.getActiveSession(activity);
         if (session == null || session.isEmpty()) return;
         final String token;
@@ -226,5 +306,15 @@ public final class AniSessionController {
     private static synchronized void stopLoops() {
         if (ticker != null) { ticker.cancel(false); ticker = null; }
         if (heartbeat != null) { heartbeat.cancel(false); heartbeat = null; }
+        stopConnectingHeartbeat();
+    }
+
+    private static synchronized void stopConnectingHeartbeat() {
+        connecting = false;
+        connectingDeadlineMillis = 0;
+        if (connectingHeartbeat != null) {
+            connectingHeartbeat.cancel(false);
+            connectingHeartbeat = null;
+        }
     }
 }
