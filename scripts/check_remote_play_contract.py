@@ -25,6 +25,7 @@ def read(path: str) -> str:
 api = read(required[0])
 login = read(required[2])
 secure = read(required[1])
+controller = read(required[4])
 worker = read(required[6])
 config = read(required[5])
 installer = read(required[7])
@@ -44,6 +45,14 @@ for token in ("hasCloudflareMeshAddress()", "100.96.x.x",
               "com.cloudflare.cloudflareoneagent", "media_address"):
     if token not in dashboard:
         raise SystemExit("Android Cloudflare Mesh preflight is missing: " + token)
+
+for token in ("AniSessionController.beginConnecting", "AniSessionController.isConnecting()"):
+    if token not in dashboard:
+        raise SystemExit("Android connection lease lifecycle is missing: " + token)
+for token in ("CONNECTING_TIMEOUT_MS", "sendConnectingHeartbeat",
+              "stopConnectingHeartbeat", "scheduleAtFixedRate"):
+    if token not in controller:
+        raise SystemExit("Android pairing lease heartbeat is incomplete: " + token)
 
 for token in ("AndroidKeyStore", "AES/GCM/NoPadding", "saveRefreshToken"):
     if token not in secure:
@@ -93,8 +102,8 @@ if "kode aktivasi" not in installer.lower() and "enrollment" not in installer.lo
 
 # No legacy Supabase function URL or project hostname may leak into runtime sources.
 runtime_sources = [
-    api, login, secure, read(required[3]), read(required[4]),
-    config, worker, installer
+    api, login, secure, read(required[3]), controller,
+    dashboard, config, worker, installer
 ]
 for source in runtime_sources:
     lowered = source.lower()
