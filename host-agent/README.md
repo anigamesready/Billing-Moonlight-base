@@ -20,7 +20,7 @@ The Host Agent is a Windows service that connects the existing DB Android contro
 5. DB Android issues a unique 256-bit Host Agent token once during enrollment. The Windows service protects it with Windows DPAPI (LocalMachine); the one-use enrollment code is erased from the local config after enrollment.
 6. With Cloudflare Mesh selected, the service discovers this PC's `100.96.0.0/12` address from the Cloudflare One adapter on every heartbeat. It will not report the PC ready until both Sunshine and the media route are ready. With WireGuard selected, the configured private overlay address is used.
 7. The Windows service uses Service Recovery to restart after an unexpected crash and attempts to close Sunshine before a deliberate service stop or update.
-7. On the Android phone, install Cloudflare One Client, join the same Zero Trust organization, allow its VPN profile, and connect it before starting a stream. Both endpoints must be enrolled in the same organization and use Traffic and DNS mode.
+8. On the Android phone, install Cloudflare One Client, sign in to the Ani Games Ready Remote Play organization using the Owner OTP login, allow its VPN profile, and connect it before starting a stream. Both endpoints must be enrolled in the same organization and use Traffic and DNS mode.
 
 ## Cloudflare Mesh account setup
 
@@ -38,7 +38,7 @@ The Cloudflare One Client Android VPN permission is a one-time user approval on 
 
 ## Important current limitation
 
-Cloudflare Mesh setup is not automatic at the account level. Admin must enable Mesh/device-to-device settings and enroll the Windows and Android devices once. The current Cloudflare account inspection found no enrolled devices and Access is not yet enabled; therefore a real media-path test is still pending. The Agent does **not** embed the Cloudflare One VPN client or silently grant Android VPN permission. Do not expose Sunshine ports or the Sunshine Web UI directly to the public internet as a workaround.
+Cloudflare Mesh setup is not automatic at the account level. Admin must enable Mesh/device-to-device settings and enroll the Windows and Android devices once. The Cloudflare Access organization, Owner-only WARP login application, and one-time email OTP provider are configured. The current account inspection found **zero enrolled Mesh devices**, and the DB Android staging gateway KV has **no registered Termux upstream**; therefore neither remote control-plane reachability nor the real media path has passed an end-to-end test yet. Enroll the Android and Windows devices in this same organization and start the DB Android Quick Tunnel registration script before testing. The Agent does **not** embed the Cloudflare One VPN client or silently grant Android VPN permission. Do not expose Sunshine ports or the Sunshine Web UI directly to the public internet as a workaround.
 
 The DB Android functions listed in `docs/DB-ANDROID-REMOTE-PLAY-RPC-CONTRACT-v2.md` must exist in the backend before enrollment or sessions can work. This source does not deploy migrations or modify the live Redmi database.
 
