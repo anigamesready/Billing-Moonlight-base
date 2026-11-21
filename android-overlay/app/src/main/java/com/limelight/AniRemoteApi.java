@@ -189,6 +189,12 @@ public final class AniRemoteApi {
         body.put("p_session_id", sessionId);
         return authenticated(context, "remote_play_session_heartbeat", body);
     }
+    /** Called once the Moonlight GameStream transport is established. */
+    public static JSONObject markStreamConnected(Context context, String sessionId) throws Exception {
+        JSONObject body = new JSONObject();
+        body.put("p_session_id", sessionId);
+        return authenticated(context, "remote_play_session_connected", body);
+    }
 
     public static JSONObject heartbeat(String clientToken, String sessionId) throws Exception {
         JSONObject body = new JSONObject();
