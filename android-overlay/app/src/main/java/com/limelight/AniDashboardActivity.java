@@ -192,8 +192,21 @@ public class AniDashboardActivity extends Activity {
 
             String accountState = rental.optString("status", "unknown");
             boolean remoteEnabled = data.optBoolean("remote_play_enabled", false);
+            long cooldownSeconds = Math.max(0, data.optLong("cooldown_seconds", 0));
+            boolean activeSession = data.optJSONObject("active_session") != null;
+            boolean cooldownActive = cooldownSeconds > 0 && !activeSession;
             canPlay = data.optBoolean("can_start", false) &&
-                    accountState.equals("active") && remaining > 0 && remoteEnabled;
+                    accountState.equals("active") && remaining > 0 && remoteEnabled &&
+                    !cooldownActive && !activeSession;
+
+            String unavailableReason;
+            if (!remoteEnabled) unavailableReason = "AKSES ADMIN OFF";
+            else if (accountState.equals("disabled") || accountState.equals("deleted") ||
+                     accountState.equals("inactive")) unavailableReason = "AKUN NONAKTIF";
+            else if (remaining <= 0 || accountState.equals("expired")) unavailableReason = "TOPUP DULU";
+            else if (activeSession) unavailableReason = "SESI AKTIF";
+            else if (cooldownActive) unavailableReason = "COOLDOWN";
+            else unavailableReason = "TIDAK TERSEDIA";
 
             String stateLabel;
             if (!remoteEnabled) stateLabel = "REMOTE PLAY BELUM DIIZINKAN ADMIN";
@@ -201,7 +214,8 @@ public class AniDashboardActivity extends Activity {
                      accountState.equals("inactive")) stateLabel = "AKUN RENTAL NONAKTIF";
             else if (remaining <= 0) stateLabel = "BILLING HABIS · TOPUP UNTUK BERMAIN";
             else if (accountState.equals("expired")) stateLabel = "MASA AKTIF EXPIRED · TOPUP UNTUK BERMAIN";
-            else if (data.optJSONObject("active_session") != null) stateLabel = "SESI REMOTE PLAY SEDANG AKTIF";
+            else if (activeSession) stateLabel = "SESI REMOTE PLAY SEDANG AKTIF";
+            else if (cooldownActive) stateLabel = "COOLDOWN · TUNGGU " + formatSeconds(cooldownSeconds);
             else stateLabel = canPlay ? "AKUN AKTIF · SIAP BERMAIN" : "AKSES REMOTE PLAY BELUM SIAP";
 
             statusText.setText(stateLabel);
@@ -227,11 +241,11 @@ public class AniDashboardActivity extends Activity {
         messageText.setText(hosts.length() + " PC terdaftar. Status diperbarui dari DB Android.");
         for (int i = 0; i < hosts.length(); i++) {
             JSONObject host = hosts.optJSONObject(i);
-            if (host != null) addHostCard(host, canPlay);
+            if (host != null) addHostCard(host, canPlay, unavailableReason);
         }
     }
 
-    private void addHostCard(JSONObject host, boolean canPlay) {
+    private void addHostCard(JSONObject host, boolean canPlay, String unavailableReason) {
         String name = host.optString("device_name", "PC Gaming");
         boolean hostOnline = host.optBoolean("online", false);
         boolean hostAvailable = host.optBoolean("available", false);
@@ -273,7 +287,7 @@ public class AniDashboardActivity extends Activity {
         boolean available=state.equals("available") && canPlay && !id.isEmpty();
         connect.setEnabled(available);
         connect.setTextColor(available?Color.rgb(4,22,26):Color.rgb(150,166,185));
-        connect.setText(available?"HUBUNGKAN PC":state.equals("busy")?"SEDANG DIGUNAKAN":!canPlay?"TOPUP DULU":state.equals("offline")?"OFFLINE":"TIDAK TERSEDIA");
+        connect.setText(available?"HUBUNGKAN PC":state.equals("busy")?"SEDANG DIGUNAKAN":state.equals("offline")?"OFFLINE":unavailableReason);
         connect.setBackground(rounded(available?Color.rgb(75,226,179):Color.rgb(42,56,75),10));
         item.addView(connect,new LinearLayout.LayoutParams(-1,dp(44)));
         connect.setOnClickListener(v->connect(host));
