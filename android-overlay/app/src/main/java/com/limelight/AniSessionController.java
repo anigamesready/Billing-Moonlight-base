@@ -91,15 +91,17 @@ public final class AniSessionController {
 
         WORKER.execute(() -> {
             try {
-                JSONObject result = AniRemoteApi.heartbeat(activity, session);
+                // Mark the actual transport-connected moment; this starts server billing.
+                // The call is idempotent so repeated Game callbacks cannot reset the clock.
+                JSONObject result = AniRemoteApi.markStreamConnected(activity, session);
                 String state = result.optString("status", "");
                 long remaining = result.optLong("remaining_seconds", 0);
                 if (!result.optBoolean("ok", false) || result.optBoolean("settled", false) ||
-                        remaining <= 0 || !(state.equals("starting") || state.equals("active"))) {
-                    throw new IllegalStateException("SESSION_NOT_ACTIVE");
+                        remaining <= 0 || !state.equals("active")) {
+                    throw new IllegalStateException("STREAM_CONNECTION_NOT_ACCEPTED_BY_SERVER");
                 }
-                // The DB Android v0.1 heartbeat returns an authoritative remaining_seconds
-                // value, not server_time. Rebase the countdown on every heartbeat.
+                // Rebase the on-screen countdown on the server deadline returned
+                // by the stream-connected event, so billing and UI start together.
                 serverOffsetMillis = 0;
                 serverDeadlineMillis = System.currentTimeMillis() + remaining * 1000L;
                 running = true;
