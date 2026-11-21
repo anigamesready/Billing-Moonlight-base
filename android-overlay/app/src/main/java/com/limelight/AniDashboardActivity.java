@@ -185,6 +185,7 @@ public class AniDashboardActivity extends Activity {
     private void showDashboard(JSONObject data) {
         JSONObject rental = data.optJSONObject("rental_account");
         boolean canPlay = false;
+        String unavailableReason = "TIDAK TERSEDIA";
         if (rental != null) {
             long remaining = rental.optLong("remaining_seconds", 0);
             remainingText.setText(formatSeconds(remaining));
@@ -199,7 +200,6 @@ public class AniDashboardActivity extends Activity {
                     accountState.equals("active") && remaining > 0 && remoteEnabled &&
                     !cooldownActive && !activeSession;
 
-            String unavailableReason;
             if (!remoteEnabled) unavailableReason = "AKSES ADMIN OFF";
             else if (accountState.equals("disabled") || accountState.equals("deleted") ||
                      accountState.equals("inactive")) unavailableReason = "AKUN NONAKTIF";
