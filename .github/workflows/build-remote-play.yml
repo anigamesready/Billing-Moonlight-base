@@ -171,7 +171,7 @@ jobs:
             throw "Host Agent installer has PowerShell syntax errors."
           }
           $installer = Get-Content .\\host-agent\\install-host-agent.ps1 -Raw
-          foreach ($token in @("100.96.0.0/12", "Cloudflare Mesh TCP", "Cloudflare Mesh UDP", "47990")) {
+          foreach ($token in @("100.96.0.0/12", "Cloudflare Mesh TCP", "Cloudflare Mesh UDP", "47984", "47989", "48010", "47998", "47999", "48000", "48002", "47990")) {
             if (-not $installer.Contains($token)) { throw "Missing required firewall token: $token" }
           }
 
