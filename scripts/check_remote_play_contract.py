@@ -107,6 +107,12 @@ for token in ("await base.StopAsync(cancellationToken)",
         raise SystemExit("Host Agent stop cleanup is incomplete: " + token)
 if "DB_ANDROID_API_BASE_URL" not in patcher or "supabase.co" not in patcher:
     raise SystemExit("Build-time DB Android endpoint validation is missing.")
+for token in ("origin_web_ui_allowed = pc", "sunshine.conf",
+              ".ani-remote-play.bak", "Restart-Service -Name \"SunshineService\"",
+              "WaitForStatus([System.ServiceProcess.ServiceControllerStatus]::Running"):
+    if token not in installer:
+        raise SystemExit("Sunshine Web UI/API local-only policy is not enforced: " + token)
+
 
 for token in ("merchant_name", "merchant_nmid", "ID1026520450531",
               "merchant_whatsapp", "082298316902", "qris_asset"):
