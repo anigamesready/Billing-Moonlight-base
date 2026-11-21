@@ -77,9 +77,15 @@ for token in ("ResolveMediaAddress()", "_mediaRouteWarningShown",
     if token not in worker:
         raise SystemExit("Host Agent dynamic Mesh heartbeat is missing: " + token)
 for token in ("MediaTransport = $mediaTransport", "Cloudflare Mesh TCP",
-              "Cloudflare Mesh UDP", "100.96.0.0/12", "48002", "Block Sunshine Web UI from Mesh"):
+              "Cloudflare Mesh UDP", "100.96.0.0/12", "48002", "Block Sunshine Web UI from Mesh",
+              "sc.exe failure $serviceName", "sc.exe failureflag $serviceName"):
     if token not in installer:
-        raise SystemExit("Host Agent Mesh firewall installer is incomplete: " + token)
+        raise SystemExit("Host Agent installer safety/recovery is incomplete: " + token)
+for token in ("await base.StopAsync(cancellationToken)",
+              "new CancellationTokenSource(TimeSpan.FromSeconds(4))",
+              "await CloseSunshineStream(shutdown.Token)"):
+    if token not in worker:
+        raise SystemExit("Host Agent stop cleanup is incomplete: " + token)
 if "DB_ANDROID_API_BASE_URL" not in patcher or "supabase.co" not in patcher:
     raise SystemExit("Build-time DB Android endpoint validation is missing.")
 if "kode aktivasi" not in installer.lower() and "enrollment" not in installer.lower():
