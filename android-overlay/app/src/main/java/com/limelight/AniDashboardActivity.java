@@ -55,6 +55,17 @@ public class AniDashboardActivity extends Activity {
         refresh();
     }
 
+    @Override protected void onResume() {
+        super.onResume();
+        // Returning from PC selection without launching Game cancels the pending lease.
+        if (AniSessionController.isConnecting()) {
+            AniSessionController.stop(this, "connection_cancelled");
+            if (messageText != null) {
+                messageText.setText("Koneksi dibatalkan. Pilih PC untuk mencoba lagi.");
+            }
+        }
+    }
+
     private void render() {
         ScrollView scroll=new ScrollView(this);
         scroll.setFillViewport(true);
@@ -324,6 +335,7 @@ public class AniDashboardActivity extends Activity {
                     throw new Exception("HOST_AGENT_OR_ROUTE_NOT_READY");
                 }
                 AniSecurePrefs.saveActiveSession(this,sessionId);
+                AniSessionController.beginConnecting(this,sessionId);
                 String finalToken=token;
                 String finalSessionId=sessionId;
                 String finalAddress=address;
@@ -375,8 +387,7 @@ public class AniDashboardActivity extends Activity {
                             startActivity(new Intent(AniDashboardActivity.this, PcView.class));
                         });
                     } catch(Exception e) {
-                        try { AniRemoteApi.stopSession(AniDashboardActivity.this,sessionId,"host_unreachable"); } catch(Exception ignored) {}
-                        AniSecurePrefs.clearActiveSession(AniDashboardActivity.this);
+                        AniSessionController.stop(AniDashboardActivity.this,"host_unreachable");
                         runOnUiThread(()->{
                             try { unbindService(connectionRef[0]); } catch(Exception ignored) {}
                             messageText.setText("PC tidak dapat dijangkau melalui rute yang didaftarkan. Sesi dibatalkan.");
