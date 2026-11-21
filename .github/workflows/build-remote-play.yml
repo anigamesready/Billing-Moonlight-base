@@ -184,6 +184,9 @@ jobs:
       - name: Build Windows Host Agent
         shell: pwsh
         run: |
+          # ConfigSmoke builds the referenced service and writes test-only build files
+          # below host-agent/tests. Keep those files out of the customer package.
+          Remove-Item .\host-agent\tests\bin, .\host-agent\tests\obj -Recurse -Force -ErrorAction SilentlyContinue
           dotnet publish .\host-agent\AniGamesReady.HostAgent.csproj --configuration Release --runtime win-x64 --self-contained true --output .\dist\host-agent
           if (-not (Test-Path .\dist\host-agent\AniGamesReady.HostAgent.exe)) { throw "Host Agent EXE was not produced." }
 
@@ -192,9 +195,14 @@ jobs:
         run: |
           Copy-Item .\host-agent\install-host-agent.ps1 .\dist\host-agent\
           Copy-Item .\host-agent\README.md .\dist\host-agent\
+          Remove-Item .\dist\host-agent\*.pdb -Force -ErrorAction SilentlyContinue
+          $unexpected = Get-ChildItem .\dist\host-agent -Recurse -Force | Where-Object {
+            $_.FullName -match '[\\/]tests([\\/]|$)' -or $_.Extension -eq '.pdb' -or $_.Extension -eq '.pyc'
+          }
+          if ($unexpected) { throw "Unexpected smoke-test/debug files in Host Agent publish output: $($unexpected.FullName -join ', ')" }
           @"
           DIAGNOSTIC BUILD ONLY — NOT A CUSTOMER RELEASE.
-          The DB Android Remote Play RPCs and real WireGuard GameStream TCP/UDP path
+          The DB Android Remote Play RPCs and real Cloudflare Mesh GameStream TCP/UDP path
           have not passed end-to-end tests. Do not deploy to live rental PCs.
           "@ | Set-Content -Encoding UTF8 .\dist\host-agent\BUILD-STATUS.txt
           Compress-Archive -Path .\dist\host-agent\* -DestinationPath .\dist\Ani-Games-Ready-Host-Agent-win-x64-Diagnostic.zip -Force
