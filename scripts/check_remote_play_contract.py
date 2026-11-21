@@ -55,6 +55,12 @@ for token in ("CONNECTING_TIMEOUT_MS", "sendConnectingHeartbeat",
     if token not in controller:
         raise SystemExit("Android pairing lease heartbeat is incomplete: " + token)
 
+for token in ("Runnable onComplete", "postStopCompletion"):
+    if token not in controller:
+        raise SystemExit("Session stop completion callback is missing: " + token)
+if 'AniSessionController.stop(this, "connection_cancelled", () -> {' not in dashboard:
+    raise SystemExit("Dashboard must refresh after the cancelled session stop completes.")
+
 for token in ("AndroidKeyStore", "AES/GCM/NoPadding", "saveRefreshToken"):
     if token not in secure:
         raise SystemExit("Android token at-rest protection missing: " + token)
