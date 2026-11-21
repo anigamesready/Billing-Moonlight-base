@@ -314,6 +314,7 @@ public class AniDashboardActivity extends Activity {
         worker.execute(()->{
             String token="";
             JSONObject started=null;
+            boolean connectingControllerStarted=false;
             try {
                 token=AniSecurePrefs.getClientToken(this);
                 started=AniRemoteApi.startSession(this,hostId,UUID.randomUUID().toString());
@@ -324,8 +325,32 @@ public class AniDashboardActivity extends Activity {
                     try { if(!sessionId.isEmpty()) AniRemoteApi.stopSession(this,sessionId,"host_route_unavailable"); } catch(Exception ignored) {}
                     throw new Exception("HOST_AGENT_OR_ROUTE_NOT_READY");
                 }
+
                 AniSecurePrefs.saveActiveSession(this,sessionId);
                 AniSessionController.beginConnecting(this,sessionId);
+                connectingControllerStarted=true;
+
+                // Do not enter Moonlight pairing until the Windows Host Agent has
+                // acknowledged start_stream. The backend accepts stream_connected
+                // only after the session moves from starting to active.
+                runOnUiThread(()->messageText.setText("Menunggu Host Agent mengonfirmasi PC..."));
+                long hostWaitDeadline=System.currentTimeMillis()+45_000L;
+                boolean hostAccepted=false;
+                while(System.currentTimeMillis()<hostWaitDeadline) {
+                    JSONObject status=AniRemoteApi.heartbeat(this,sessionId);
+                    String state=status.optString("status","");
+                    if(!status.optBoolean("ok",false) || status.optBoolean("settled",false))
+                        throw new Exception("REMOTE_PLAY_HOST_SESSION_REJECTED");
+                    if("active".equals(state)) {
+                        hostAccepted=true;
+                        break;
+                    }
+                    if(!"starting".equals(state))
+                        throw new Exception("REMOTE_PLAY_HOST_SESSION_INVALID_STATE");
+                    Thread.sleep(2500L);
+                }
+                if(!hostAccepted) throw new Exception("REMOTE_PLAY_HOST_START_TIMEOUT");
+
                 String finalToken=token;
                 String finalSessionId=sessionId;
                 String finalAddress=address;
@@ -337,14 +362,21 @@ public class AniDashboardActivity extends Activity {
                 if(started!=null) {
                     String sid=started.optString("session_id","");
                     if(!sid.isEmpty() && !started.optBoolean("idempotent",false)) {
-                        try { AniRemoteApi.stopSession(this,sid,"connect_prepare_failed"); } catch(Exception ignored) {}
+                        if(connectingControllerStarted) {
+                            AniSessionController.stop(this,"connect_prepare_failed");
+                        } else {
+                            try { AniRemoteApi.stopSession(this,sid,"connect_prepare_failed"); } catch(Exception ignored) {}
+                            try { AniSecurePrefs.clearActiveSession(this); } catch(Exception ignored) {}
+                        }
                     }
                 }
                 runOnUiThread(()->{
                     busy=false;
                     messageText.setText(e.getMessage()!=null && e.getMessage().contains("HOST_AGENT_OR_ROUTE_NOT_READY")
                         ?"PC belum memiliki rute media TCP/UDP yang aktif. Host Agent belum siap."
-                        :"Gagal memulai sesi: "+(e.getMessage()==null?"REMOTE_PLAY_ERROR":e.getMessage()));
+                        :e.getMessage()!=null && e.getMessage().contains("HOST_START_TIMEOUT")
+                            ?"Host Agent belum mengonfirmasi PC dalam 45 detik. Sesi dibatalkan, coba Refresh lalu hubungkan ulang."
+                            :"Gagal memulai sesi: "+(e.getMessage()==null?"REMOTE_PLAY_ERROR":e.getMessage()));
                 });
             }
         });
