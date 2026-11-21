@@ -45,6 +45,14 @@ def main() -> None:
     for source in java_src.glob("*.java"):
         shutil.copy2(source, java_dst / source.name)
 
+    # Merchant QRIS is bundled locally; no external QR image URL is required.
+    qris_src = overlay / "app/src/main/res/drawable-nodpi/ani_qris.png"
+    qris_dst = root / "app/src/main/res/drawable-nodpi/ani_qris.png"
+    if not qris_src.is_file():
+        raise FileNotFoundError(f"Original Ani Games Ready QRIS asset not found: {qris_src}")
+    qris_dst.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copy2(qris_src, qris_dst)
+
     # Distinct app identity. Keep upstream root/non-root flavor behavior intact.
     gradle_path = root / "app/build.gradle"
     gradle = read(gradle_path)
@@ -297,6 +305,7 @@ def main() -> None:
         "app/src/main/java/com/limelight/AniLoginActivity.java",
         "app/src/main/java/com/limelight/AniDashboardActivity.java",
         "app/src/main/java/com/limelight/AniSessionController.java",
+        "app/src/main/res/drawable-nodpi/ani_qris.png",
     ]
     missing = [p for p in required if not (root / p).exists()]
     if missing:
