@@ -567,10 +567,14 @@ public class AniDashboardActivity extends Activity {
     @Override protected void onResume() {
         super.onResume();
         if (AniSessionController.isConnecting()) {
-            AniSessionController.stop(this, "connection_cancelled");
-            if (messageText != null) {
-                messageText.setText("Koneksi dibatalkan. Pilih PC untuk mencoba lagi.");
-            }
+            if (messageText != null) messageText.setText("Koneksi dibatalkan. Mengakhiri sesi...");
+            AniSessionController.stop(this, "connection_cancelled", () -> {
+                if (messageText != null) {
+                    messageText.setText("Koneksi dibatalkan. Pilih PC untuk mencoba lagi.");
+                    refresh();
+                }
+            });
+            return;
         }
         if (messageText != null) refresh();
     }
