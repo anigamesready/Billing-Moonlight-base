@@ -19,6 +19,7 @@ The Host Agent is a Windows service that connects the existing DB Android contro
 4. Enter the same stable HTTPS DB Android gateway URL, the one-use Admin enrollment code and the local Sunshine credentials. Choose **M** for Cloudflare Mesh (recommended) or **W** for a preconfigured WireGuard route.
 5. DB Android issues a unique 256-bit Host Agent token once during enrollment. The Windows service protects it with Windows DPAPI (LocalMachine); the one-use enrollment code is erased from the local config after enrollment.
 6. With Cloudflare Mesh selected, the service discovers this PC's `100.96.0.0/12` address from the Cloudflare One adapter on every heartbeat. It will not report the PC ready until both Sunshine and the media route are ready. With WireGuard selected, the configured private overlay address is used.
+7. The Windows service uses Service Recovery to restart after an unexpected crash and attempts to close Sunshine before a deliberate service stop or update.
 7. On the Android phone, install Cloudflare One Client, join the same Zero Trust organization, allow its VPN profile, and connect it before starting a stream. Both endpoints must be enrolled in the same organization and use Traffic and DNS mode.
 
 ## Cloudflare Mesh account setup
