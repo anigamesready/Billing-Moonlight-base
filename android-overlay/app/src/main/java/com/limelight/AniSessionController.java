@@ -241,21 +241,19 @@ public final class AniSessionController {
     }
 
     public static void stop(Activity activity, String reason) {
+        stop(activity, reason, null);
+    }
+
+    public static void stop(Activity activity, String reason, Runnable onComplete) {
         connecting = false;
         connectingDeadlineMillis = 0;
         String session = activeSessionId;
+        if (session == null || session.isEmpty()) session = AniSecurePrefs.getActiveSession(activity);
         if (session == null || session.isEmpty()) {
-            session = AniSecurePrefs.getActiveSession(activity);
-        }
-        if (session == null || session.isEmpty()) return;
-
-        final String sessionToStop = session;
-        final String token;
-        try {
-            token = AniSecurePrefs.getClientToken(activity);
-        } catch (Exception e) {
+            postStopCompletion(activity, onComplete);
             return;
         }
+        final String sessionToStop = session;
         running = false;
         stopLoops();
         WORKER.execute(() -> {
@@ -266,12 +264,20 @@ public final class AniSessionController {
                 clientToken = "";
             } catch (Exception ignored) {
                 // Keep the session id locally so the next dashboard start can retry.
+            } finally {
+                postStopCompletion(activity, onComplete);
             }
         });
         TextView view = timerRef.get();
         if (view != null) MAIN.post(() -> view.setVisibility(TextView.GONE));
     }
 
+    private static void postStopCompletion(Activity activity, Runnable completion) {
+        if (completion == null) return;
+        MAIN.post(() -> {
+            if (activity == null || !activity.isFinishing()) completion.run();
+        });
+    }
     public static void recoverBeforeDashboard(Activity activity) {
         connecting = false;
         connectingDeadlineMillis = 0;
