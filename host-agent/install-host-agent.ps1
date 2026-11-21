@@ -135,6 +135,12 @@ if (Get-Service -Name $serviceName -ErrorAction SilentlyContinue) {
 $serviceBin = '"' + $exe + '"'
 sc.exe create $serviceName binPath= $serviceBin start= auto DisplayName= "Ani Games Ready Remote Host Agent" | Out-Null
 sc.exe description $serviceName "Connects approved Ani Remote Play sessions to local Sunshine." | Out-Null
+# Restart the Agent after an unexpected service crash so the DB host watchdog and
+# stop-command queue can recover automatically. This does not restart Sunshine.
+sc.exe failure $serviceName reset= 86400 actions= restart/5000/restart/15000/restart/60000 | Out-Null
+if ($LASTEXITCODE -ne 0) { throw "Gagal mengatur Windows Service Recovery Host Agent." }
+sc.exe failureflag $serviceName 1 | Out-Null
+if ($LASTEXITCODE -ne 0) { throw "Gagal mengaktifkan failure flag Host Agent." }
 Start-Service $serviceName
 Write-Host "Ani Games Ready Host Agent installed. Admin enrollment and live heartbeat must succeed before the PC is shown as available." -ForegroundColor Green
 Write-Host "Note: Cloudflare Mesh requires both devices enrolled and connected to the same Zero Trust organization; WireGuard requires its private route to be configured. The DB HTTPS gateway does not carry game traffic."
