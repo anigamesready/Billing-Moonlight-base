@@ -434,8 +434,27 @@ public sealed class HostAgentWorker : BackgroundService
 
     public override async Task StopAsync(CancellationToken cancellationToken)
     {
+        await base.StopAsync(cancellationToken);
+
+        // A deliberate service stop or update must not leave Sunshine streaming
+        // after the control-plane worker has gone away. Use a short independent
+        // timeout because the host shutdown token may already be cancelled.
+        if (_sunshine is not null)
+        {
+            using var shutdown = new CancellationTokenSource(TimeSpan.FromSeconds(4));
+            try
+            {
+                await CloseSunshineStream(shutdown.Token);
+                _logger.LogInformation("Sunshine stream closed before Host Agent service stop");
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning("Could not close Sunshine stream during Host Agent stop: {Reason}", ex.Message);
+            }
+        }
+
+        _activeSessionId = "";
         _api?.Dispose();
         _sunshine?.Dispose();
-        await base.StopAsync(cancellationToken);
     }
 }
