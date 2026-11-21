@@ -9,7 +9,7 @@ The Host Agent is a Windows service that connects the existing DB Android contro
 - DB Android existing stable HTTPS gateway URL, exactly the same endpoint used by Ani Games Ready apps.
 - Admin-issued, one-use Host Agent enrollment code for this PC.
 - A private media overlay shared by the Windows host and Android client. Preferred: Cloudflare One Client (Cloudflare Mesh) signed in to the same Zero Trust organization on both devices. Existing WireGuard remains supported.
-- Sunshine Web UI/API bound to loopback only. The Agent connects only to `https://127.0.0.1:47990`.
+- The Agent calls `https://127.0.0.1:47990`. The installer enforces Sunshine `origin_web_ui_allowed = pc`, which rejects Web UI/API requests from remote PCs while preserving normal GameStream listener binding. Do **not** set the global `bind_address = 127.0.0.1`, because that would also prevent remote Moonlight media connections.
 
 ## Install
 
