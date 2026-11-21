@@ -55,17 +55,6 @@ public class AniDashboardActivity extends Activity {
         refresh();
     }
 
-    @Override protected void onResume() {
-        super.onResume();
-        // Returning from PC selection without launching Game cancels the pending lease.
-        if (AniSessionController.isConnecting()) {
-            AniSessionController.stop(this, "connection_cancelled");
-            if (messageText != null) {
-                messageText.setText("Koneksi dibatalkan. Pilih PC untuk mencoba lagi.");
-            }
-        }
-    }
-
     private void render() {
         ScrollView scroll=new ScrollView(this);
         scroll.setFillViewport(true);
@@ -540,6 +529,15 @@ public class AniDashboardActivity extends Activity {
         }
     }
 
-    @Override protected void onResume() { super.onResume(); if(messageText!=null) refresh(); }
+    @Override protected void onResume() {
+        super.onResume();
+        if (AniSessionController.isConnecting()) {
+            AniSessionController.stop(this, "connection_cancelled");
+            if (messageText != null) {
+                messageText.setText("Koneksi dibatalkan. Pilih PC untuk mencoba lagi.");
+            }
+        }
+        if (messageText != null) refresh();
+    }
     @Override protected void onDestroy() { super.onDestroy(); worker.shutdownNow(); }
 }
