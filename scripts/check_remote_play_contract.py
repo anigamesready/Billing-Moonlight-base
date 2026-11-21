@@ -77,7 +77,7 @@ for token in ("ResolveMediaAddress()", "_mediaRouteWarningShown",
     if token not in worker:
         raise SystemExit("Host Agent dynamic Mesh heartbeat is missing: " + token)
 for token in ("MediaTransport = $mediaTransport", "Cloudflare Mesh TCP",
-              "Cloudflare Mesh UDP", "100.96.0.0/12", "Block Sunshine Web UI from Mesh"):
+              "Cloudflare Mesh UDP", "100.96.0.0/12", "48002", "Block Sunshine Web UI from Mesh"):
     if token not in installer:
         raise SystemExit("Host Agent Mesh firewall installer is incomplete: " + token)
 if "DB_ANDROID_API_BASE_URL" not in patcher or "supabase.co" not in patcher:
