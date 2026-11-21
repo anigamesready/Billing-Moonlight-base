@@ -66,7 +66,7 @@ finally { [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($bstr) }
 Add-Type -AssemblyName System.Security
 # Restrict Sunshine GameStream inbound traffic to enrolled Cloudflare Mesh peers.
 # GameStream ports match the pinned Moonlight Android client: TCP 47984/47989/48010,
-# UDP 47998/47999/48000/48010. The Sunshine Web UI/API port 47990 is never opened.
+# UDP 47998/47999/48000/48002/48010. The Sunshine Web UI/API port 47990 is never opened.
 if ($mediaTransport -eq "cloudflare_mesh") {
     $meshCidr = "100.96.0.0/12"
     try {
@@ -92,7 +92,7 @@ if ($mediaTransport -eq "cloudflare_mesh") {
             Get-NetFirewallRule -DisplayName $name -ErrorAction SilentlyContinue | Remove-NetFirewallRule
         }
         New-NetFirewallRule -DisplayName "Ani Remote Play Cloudflare Mesh TCP" -Direction Inbound -Action Allow -Enabled True -Profile Any -Protocol TCP -LocalPort 47984,47989,48010 -RemoteAddress $meshCidr | Out-Null
-        New-NetFirewallRule -DisplayName "Ani Remote Play Cloudflare Mesh UDP" -Direction Inbound -Action Allow -Enabled True -Profile Any -Protocol UDP -LocalPort 47998,47999,48000,48010 -RemoteAddress $meshCidr | Out-Null
+        New-NetFirewallRule -DisplayName "Ani Remote Play Cloudflare Mesh UDP" -Direction Inbound -Action Allow -Enabled True -Profile Any -Protocol UDP -LocalPort 47998,47999,48000,48002,48010 -RemoteAddress $meshCidr | Out-Null
         New-NetFirewallRule -DisplayName "Ani Remote Play Block Sunshine Web UI from Mesh" -Direction Inbound -Action Block -Enabled True -Profile Any -Protocol TCP -LocalPort 47990 -RemoteAddress $meshCidr | Out-Null
         Write-Host "Firewall GameStream dibatasi ke Cloudflare Mesh 100.96.0.0/12. Port Web UI/API Sunshine 47990 tidak dibuka." -ForegroundColor Green
     } catch {
