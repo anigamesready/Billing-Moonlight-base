@@ -14,6 +14,7 @@ required = [
     "host-agent/HostAgentWorker.cs",
     "host-agent/install-host-agent.ps1",
     "scripts/apply_android_overlay.py",
+    "android-overlay/app/src/main/res/drawable-nodpi/ani_qris.png",
 ]
 missing = [p for p in required if not (ROOT / p).is_file()]
 if missing:
@@ -97,6 +98,19 @@ for token in ("await base.StopAsync(cancellationToken)",
         raise SystemExit("Host Agent stop cleanup is incomplete: " + token)
 if "DB_ANDROID_API_BASE_URL" not in patcher or "supabase.co" not in patcher:
     raise SystemExit("Build-time DB Android endpoint validation is missing.")
+
+for token in ("merchant_name", "merchant_nmid", "ID1026520450531",
+              "merchant_whatsapp", "082298316902", "qris_asset"):
+    if token not in api:
+        raise SystemExit("Bundled merchant QRIS metadata is incomplete: " + token)
+for token in ("R.drawable.ani_qris", "QRIS resmi merchant Ani Games Ready",
+              "Kirim Bukti via WhatsApp"):
+    if token not in dashboard:
+        raise SystemExit("QRIS top-up screen is incomplete: " + token)
+for token in ("qris_src = overlay /", "shutil.copy2(qris_src, qris_dst)",
+              "drawable-nodpi/ani_qris.png"):
+    if token not in patcher:
+        raise SystemExit("Bundled QRIS image is not copied into the APK: " + token)
 if "kode aktivasi" not in installer.lower() and "enrollment" not in installer.lower():
     raise SystemExit("Host enrollment setup is missing.")
 
