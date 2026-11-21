@@ -23,7 +23,7 @@ The Host Agent is a Windows service that connects the existing DB Android contro
 
 ## Cloudflare Mesh account setup
 
-Cloudflare Mesh requires an enrolled device rule, device-to-device traffic enabled, unique device IPs, Mesh range `100.96.0.0/12` routed through both device profiles, and TCP/UDP Gateway proxy enabled. Windows Firewall rules created by the installer allow only the standard Moonlight GameStream TCP/UDP ports from `100.96.0.0/12`; port `47990` (Sunshine Web UI/API) is not opened to Mesh peers. Keep Sunshine UPnP disabled and do not forward Sunshine ports on the router.
+Cloudflare Mesh requires an enrolled device rule, device-to-device traffic enabled, unique device IPs, Mesh range `100.96.0.0/12` routed through both device profiles, and TCP/UDP Gateway proxy enabled. Windows Firewall rules created by the installer allow only Moonlight GameStream TCP `47984, 47989, 48010` and UDP `47998, 47999, 48000, 48002, 48010` from `100.96.0.0/12`; port `47990` (Sunshine Web UI/API) is never opened to Mesh peers. Keep Sunshine UPnP disabled and do not forward Sunshine ports on the router.
 
 The Cloudflare One Client Android VPN permission is a one-time user approval on the phone; it cannot be silently enabled by this APK. Official setup: https://developers.cloudflare.com/mesh/get-started/ and https://developers.cloudflare.com/mesh/guides/connect-client-devices/.
 
