@@ -255,11 +255,13 @@ public final class AniRemoteApi {
         return rpc("remote_play_pairing_prepare", body, clientToken);
     }
 
-    /** DB Android v0.1 has no top-up-info RPC; use the configured support contact locally. */
+    /** Static merchant QRIS is bundled with the APK; no image server is required. */
     public static JSONObject topupInfo(Context context) throws Exception {
         JSONObject info = new JSONObject();
+        info.put("merchant_name", "Ani Games Ready");
+        info.put("merchant_nmid", "ID1026520450531");
         info.put("merchant_whatsapp", "082298316902");
-        info.put("qris_image_url", "");
+        info.put("qris_asset", "ani_qris");
         return info;
     }
 
