@@ -15,6 +15,7 @@ import android.os.IBinder;
 import android.view.Gravity;
 import android.view.View;
 import android.widget.Button;
+import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.TextView;
@@ -439,34 +440,68 @@ public class AniDashboardActivity extends Activity {
     }
 
     private void showTopup() {
-        String token;
-        try { token=AniSecurePrefs.getClientToken(this); }
-        catch(Exception e) { token=""; }
-        final String savedToken=token;
-        worker.execute(()->{
-            JSONObject info=null;
-            try { info=AniRemoteApi.topupInfo(this); } catch(Exception ignored) {}
-            JSONObject finalInfo=info;
-            runOnUiThread(()->{
-                String qris=finalInfo==null?"":finalInfo.optString("qris_image_url","");
-                String wa=finalInfo==null?"082298316902":finalInfo.optString("merchant_whatsapp","082298316902");
-                String text="TOPUP BILLING ANI GAMES READY\n\n";
-                if(qris.isEmpty()) text+="QRIS belum tersedia di server. Admin perlu memasang file QRIS merchant yang asli.\n\n";
-                else text+="QRIS tersedia: "+qris+"\n\n";
-                text+="Setelah transfer, kirim bukti pembayaran dan User ID melalui WhatsApp "+wa+". Saldo ditambahkan setelah Admin memverifikasi pembayaran.";
-                new AlertDialog.Builder(this)
-                    .setTitle("Topup Billing")
-                    .setMessage(text)
-                    .setPositiveButton("Buka WhatsApp",(d,w)->{
-                        String phone=wa.replaceAll("[^0-9]","");
-                        if(phone.startsWith("0")) phone="62"+phone.substring(1);
-                        String msg="Halo Ani Games Ready, saya ingin topup billing. User ID: "+currentCode;
-                        try { startActivity(new Intent(Intent.ACTION_VIEW,Uri.parse("https://wa.me/"+phone+"?text="+Uri.encode(msg)))); }
-                        catch(Exception ignored) {}
-                    })
-                    .setNegativeButton("Tutup",null).show();
-            });
-        });
+        JSONObject info = null;
+        try { info = AniRemoteApi.topupInfo(this); } catch (Exception ignored) {}
+        String merchant = info == null ? "Ani Games Ready" : info.optString("merchant_name", "Ani Games Ready");
+        String nmid = info == null ? "ID1026520450531" : info.optString("merchant_nmid", "ID1026520450531");
+        String wa = info == null ? "082298316902" : info.optString("merchant_whatsapp", "082298316902");
+
+        LinearLayout panel = new LinearLayout(this);
+        panel.setOrientation(LinearLayout.VERTICAL);
+        panel.setPadding(dp(14), dp(8), dp(14), dp(12));
+
+        TextView heading = new TextView(this);
+        heading.setText(merchant + "\\nQRIS Merchant");
+        heading.setTextColor(Color.WHITE);
+        heading.setTextSize(17);
+        heading.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
+        heading.setGravity(Gravity.CENTER);
+        panel.addView(heading, new LinearLayout.LayoutParams(-1, -2));
+
+        TextView merchantId = new TextView(this);
+        merchantId.setText("NMID: " + nmid);
+        merchantId.setTextColor(Color.rgb(180, 200, 222));
+        merchantId.setTextSize(12);
+        merchantId.setGravity(Gravity.CENTER);
+        LinearLayout.LayoutParams idParams = new LinearLayout.LayoutParams(-1, -2);
+        idParams.topMargin = dp(5);
+        panel.addView(merchantId, idParams);
+
+        ImageView qrImage = new ImageView(this);
+        qrImage.setImageResource(R.drawable.ani_qris);
+        qrImage.setContentDescription("QRIS resmi merchant Ani Games Ready");
+        qrImage.setScaleType(ImageView.ScaleType.FIT_CENTER);
+        qrImage.setAdjustViewBounds(true);
+        LinearLayout.LayoutParams qrParams = new LinearLayout.LayoutParams(-1, dp(300));
+        qrParams.topMargin = dp(8);
+        panel.addView(qrImage, qrParams);
+
+        TextView instructions = new TextView(this);
+        instructions.setText("Scan QRIS di atas dari aplikasi bank atau e-wallet. Masukkan nominal top-up sesuai kesepakatan dengan Admin.\\n\\nSetelah pembayaran, kirim bukti transfer dan User ID melalui WhatsApp. Saldo ditambahkan setelah pembayaran diverifikasi Admin.");
+        instructions.setTextColor(Color.rgb(205, 218, 235));
+        instructions.setTextSize(13);
+        instructions.setGravity(Gravity.CENTER);
+        LinearLayout.LayoutParams noteParams = new LinearLayout.LayoutParams(-1, -2);
+        noteParams.topMargin = dp(8);
+        panel.addView(instructions, noteParams);
+
+        ScrollView scroll = new ScrollView(this);
+        scroll.setFillViewport(false);
+        scroll.addView(panel);
+        new AlertDialog.Builder(this)
+            .setTitle("Top Up via QRIS")
+            .setView(scroll)
+            .setPositiveButton("Kirim Bukti via WhatsApp", (d, w) -> {
+                String phone = wa.replaceAll("[^0-9]", "");
+                if (phone.startsWith("0")) phone = "62" + phone.substring(1);
+                String message = "Halo Ani Games Ready, saya sudah melakukan pembayaran QRIS untuk top-up. User ID: " + currentCode + ". Mohon verifikasi, terima kasih.";
+                try {
+                    startActivity(new Intent(Intent.ACTION_VIEW,
+                        Uri.parse("https://wa.me/" + phone + "?text=" + Uri.encode(message))));
+                } catch (Exception ignored) {}
+            })
+            .setNegativeButton("Tutup", null)
+            .show();
     }
 
     private LinearLayout card() {
