@@ -51,6 +51,12 @@ for token in ("hasCloudflareMeshAddress()", "100.96.x.x",
 for token in ("AniSessionController.beginConnecting", "AniSessionController.isConnecting()"):
     if token not in dashboard:
         raise SystemExit("Android connection lease lifecycle is missing: " + token)
+# The Android client must wait for the Windows Host Agent ACK before opening PcView;
+# otherwise the stream-connected billing callback can race the server-side state transition.
+for token in ("hostWaitDeadline", 'AniRemoteApi.heartbeat(this,sessionId)',
+              '"active".equals(state)', "REMOTE_PLAY_HOST_START_TIMEOUT"):
+    if token not in dashboard:
+        raise SystemExit("Android must wait for Host Agent start acknowledgement: " + token)
 for token in ("CONNECTING_TIMEOUT_MS", "sendConnectingHeartbeat",
               "stopConnectingHeartbeat", "scheduleAtFixedRate"):
     if token not in controller:
