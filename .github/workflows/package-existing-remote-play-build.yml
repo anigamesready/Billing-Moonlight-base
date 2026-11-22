@@ -61,6 +61,10 @@ jobs:
           - Sunshine x64 terpasang dan sudah dibuka minimal sekali untuk membuat akun Web UI.
           - Cloudflare One Client/WARP terpasang, login ke organisasi yang sama dengan HP:
             team name: `anigamesready-remoteplay`.
+          - Di Cloudflare Zero Trust > Settings, aktifkan **Allow all Cloudflare One traffic to reach enrolled devices**.
+          - Di device profile Mesh dan Android, gunakan Traffic and DNS mode. Route `100.96.0.0/12` melalui Cloudflare
+            (Include mode: tambahkan range tersebut; Exclude mode: pastikan range itu dan parent `100.64.0.0/10` tidak dikecualikan).
+          - Akun Cloudflare sudah memiliki unique virtual IP dan TCP/UDP Gateway proxy aktif; perangkat belum ter-enroll.
           - PC sudah terdaftar sebagai device di Ani Games Ready DB Android.
           - Admin sudah mengaktifkan izin Host Remote Play PC ini dan menerbitkan kode enrollment sekali pakai dari menu Admin > Remote Play.
 
