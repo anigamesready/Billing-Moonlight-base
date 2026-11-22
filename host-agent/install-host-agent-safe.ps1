@@ -120,15 +120,10 @@ if ($sunshineConfigChanged) {
     $sunshineBackup = Backup-File $sunshineConfigPath
     [IO.File]::WriteAllText($sunshineConfigPath, $updatedSunshineConfig, [Text.UTF8Encoding]::new($false))
     Write-Host "Sunshine config backed up to: $sunshineBackup" -ForegroundColor Yellow
-    $sunshineService = Get-Service -Name "SunshineService" -ErrorAction SilentlyContinue
-    if ($sunshineService) {
-        Write-Warning "Sunshine config diperbarui. Restart Sunshine hanya jika tidak ada sesi stream aktif."
-        if ($sunshineService.Status -eq [System.ServiceProcess.ServiceControllerStatus]::Running) { Restart-Service -Name "SunshineService" -Force }
-        else { Start-Service -Name "SunshineService" }
-        (Get-Service -Name "SunshineService").WaitForStatus([System.ServiceProcess.ServiceControllerStatus]::Running,[TimeSpan]::FromSeconds(30))
-    } else {
-        Write-Warning "Sunshine bukan Windows Service. Restart Sunshine secara manual agar kebijakan Web UI lokal aktif."
-    }
+    # Do not restart Sunshine from this installer: a live gaming session may be using it.
+    # The local-only Web UI policy takes effect after the operator restarts Sunshine
+    # at a safe time. The dedicated Mesh firewall block is applied immediately.
+    Write-Warning "Kebijakan Web UI lokal sudah disimpan. Restart Sunshine secara manual saat tidak ada sesi stream aktif agar kebijakan berlaku. Installer tidak merestart Sunshine."
 }
 
 # Add only the three Ani-owned firewall rules; do not edit/remove existing Sunshine defaults or custom rules.
