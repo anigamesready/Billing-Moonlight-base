@@ -1,0 +1,107 @@
+name: Package existing Ani Remote Play build with safe Host installer
+
+on:
+  push:
+    branches:
+      - feature/ani-remote-play-safe-host-install-layer-v0.1
+  workflow_dispatch:
+
+permissions:
+  actions: read
+  contents: read
+
+jobs:
+  package-existing-binaries:
+    name: Reuse existing APK and Host Agent binaries (no rebuild)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout additive installer layer
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+
+      - name: Download previously successful Android APK artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: ani-moonlight-android-diagnostic
+          path: source/android
+          repository: anigamesready/Billing-Moonlight-base
+          run-id: 44944003339
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Download previously successful Windows Host Agent artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: ani-games-ready-host-agent-win-x64-diagnostic
+          path: source/host
+          repository: anigamesready/Billing-Moonlight-base
+          run-id: 44944003339
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Replace only the unsafe installer in the existing Host Agent package
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -s source/android/Ani-Moonlight-Android-Diagnostic.apk
+          test -s source/host/Ani-Games-Ready-Host-Agent-win-x64-Diagnostic.zip
+          mkdir -p work/host work/package/android
+          unzip -q source/host/Ani-Games-Ready-Host-Agent-win-x64-Diagnostic.zip -d work/host
+          test -s work/host/AniGamesReady.HostAgent.exe
+          test -s host-agent/install-host-agent-safe.ps1
+          cp host-agent/install-host-agent-safe.ps1 work/host/install-host-agent.ps1
+          rm -f work/host/install-host-agent-safe.ps1
+          cat > work/host/INSTALLER-SAFETY.txt <<'EOF'
+          This package reuses the Host Agent EXE from the successful 2026-11-21 CI build.
+          Only install-host-agent.ps1 was replaced with the additive, non-destructive installer.
+          The installer does not delete/recreate an existing Host Agent service, does not edit
+          existing Sunshine application firewall rules, and does not restart Sunshine.
+          Existing enrolled Host Agent token is preserved when the existing config is valid.
+          EOF
+          (cd work/host && zip -qr ../../Ani-Games-Ready-Host-Agent-Windows-x64-SAFE.zip .)
+
+          cp source/android/Ani-Moonlight-Android-Diagnostic.apk work/package/android/
+          cp source/android/BUILD-STATUS.txt work/package/android/ 2>/dev/null || true
+          cp source/android/ENDPOINT-STATUS.txt work/package/android/ 2>/dev/null || true
+          cp Ani-Games-Ready-Host-Agent-Windows-x64-SAFE.zip work/package/
+          cat > work/package/BUILD-PROVENANCE.txt <<EOF
+          Ani Games Ready Remote Play integration test package
+          Existing Android APK artifact: run 44944003339 / artifact 14723175196
+          Existing Windows Host Agent artifact: run 44944003339 / artifact 14723185457
+          Source build commit: e63c649d097e997af6cb56e988d9ee9c308e0607
+          Installer-only layer branch: feature/ani-remote-play-safe-host-install-layer-v0.1
+          Installer audit commit: ${GITHUB_SHA}
+          No Android APK build was run in this workflow.
+          No Host Agent EXE compilation/publish was run in this workflow.
+          Only the Host Agent PowerShell installer was replaced with the safe additive installer.
+          This remains a DIAGNOSTIC / INTEGRATION TEST package, not a production release.
+          Real Cloudflare Mesh enrollment and TCP/UDP Sunshine stream are still required for E2E sign-off.
+          EOF
+          (cd work/package && find . -type f -print0 | sort -z | xargs -0 sha256sum > SHA256SUMS.txt)
+          cd work
+          zip -qr ../Ani-Remote-Play-Integration-Diagnostic-SAFE.zip package
+          sha256sum ../Ani-Remote-Play-Integration-Diagnostic-SAFE.zip
+
+      - name: Verify reused binary identity and package contents
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p verify
+          unzip -q Ani-Games-Ready-Host-Agent-Windows-x64-SAFE.zip -d verify/host
+          test -s verify/host/AniGamesReady.HostAgent.exe
+          test -s verify/host/install-host-agent.ps1
+          ! grep -qi 'sc.exe delete' verify/host/install-host-agent.ps1
+          ! grep -qi 'Set-NetFirewallAddressFilter' verify/host/install-host-agent.ps1
+          ! grep -qi 'Restart-Service' verify/host/install-host-agent.ps1
+          unzip -l Ani-Remote-Play-Integration-Diagnostic-SAFE.zip
+          sha256sum source/android/Ani-Moonlight-Android-Diagnostic.apk
+          sha256sum verify/host/AniGamesReady.HostAgent.exe
+
+      - name: Upload safe integration diagnostic package
+        uses: actions/upload-artifact@v4
+        with:
+          name: ani-remote-play-integration-diagnostic-safe
+          path: |
+            Ani-Remote-Play-Integration-Diagnostic-SAFE.zip
+            Ani-Games-Ready-Host-Agent-Windows-x64-SAFE.zip
+          if-no-files-found: error
+          retention-days: 14
