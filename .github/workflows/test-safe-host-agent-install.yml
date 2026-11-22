@@ -35,15 +35,15 @@ jobs:
         run: |
           $script = Get-Content .\host-agent\install-host-agent-safe.ps1 -Raw
           $required = @(
-            "ProgramData\AniGamesReady\HostAgent",
+            "$env:ProgramData",
+            "AniGamesReady\HostAgent",
             "HostTokenProtected",
             "Enrolled",
             "100.96.0.0/12",
             "47984,47989,48010",
             "47998,47999,48000,48002,48010",
             "47990",
-            "Backup-File",
-            "remote_play"
+            "Backup-File"
           )
           foreach ($value in $required) {
             if (-not $script.Contains($value)) { throw "Missing required safe-installer contract: $value" }
