@@ -142,8 +142,8 @@ jobs:
           ! grep -qi 'sc.exe delete' verify/host/install-host-agent.ps1
           ! grep -qi 'Set-NetFirewallAddressFilter' verify/host/install-host-agent.ps1
           ! grep -qi 'Restart-Service' verify/host/install-host-agent.ps1
-          sha256sum work/package/android/Ani-Moonlight-Android-Diagnostic.apk
-          sha256sum verify/host/AniGamesReady.HostAgent.exe
+          echo "0b63cee0bc835aaec58027517e84fc20c89690881f4f1605bda0543e922473a3  work/package/android/Ani-Moonlight-Android-Diagnostic.apk" | sha256sum -c -
+          echo "c4392fdbd01f7a71641c904aa479c4bda9ce726b8846db8d554603c6aafc5ff0  verify/host/AniGamesReady.HostAgent.exe" | sha256sum -c -
 
       - name: Upload safe integration diagnostic package
         uses: actions/upload-artifact@v4
