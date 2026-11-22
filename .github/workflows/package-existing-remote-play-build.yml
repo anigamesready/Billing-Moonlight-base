@@ -124,31 +124,27 @@ jobs:
           Real Cloudflare Mesh enrollment and TCP/UDP Sunshine stream are still required for E2E sign-off.
           EOF
           (cd work/package && find . -type f -print0 | sort -z | xargs -0 sha256sum > SHA256SUMS.txt)
-          cd work
-          zip -qr ../Ani-Remote-Play-Integration-Diagnostic-SAFE.zip package
-          sha256sum ../Ani-Remote-Play-Integration-Diagnostic-SAFE.zip
 
       - name: Verify reused binary identity and package contents
         shell: bash
         run: |
           set -euo pipefail
-          mkdir -p verify
-          unzip -q Ani-Games-Ready-Host-Agent-Windows-x64-SAFE.zip -d verify/host
+          mkdir -p verify/host
+          test -s work/package/android/Ani-Moonlight-Android-Diagnostic.apk
+          test -s work/package/Ani-Games-Ready-Host-Agent-Windows-x64-SAFE.zip
+          unzip -q work/package/Ani-Games-Ready-Host-Agent-Windows-x64-SAFE.zip -d verify/host
           test -s verify/host/AniGamesReady.HostAgent.exe
           test -s verify/host/install-host-agent.ps1
           ! grep -qi 'sc.exe delete' verify/host/install-host-agent.ps1
           ! grep -qi 'Set-NetFirewallAddressFilter' verify/host/install-host-agent.ps1
           ! grep -qi 'Restart-Service' verify/host/install-host-agent.ps1
-          unzip -l Ani-Remote-Play-Integration-Diagnostic-SAFE.zip
-          sha256sum source/android/Ani-Moonlight-Android-Diagnostic.apk
+          sha256sum work/package/android/Ani-Moonlight-Android-Diagnostic.apk
           sha256sum verify/host/AniGamesReady.HostAgent.exe
 
       - name: Upload safe integration diagnostic package
         uses: actions/upload-artifact@v4
         with:
           name: ani-remote-play-integration-diagnostic-safe
-          path: |
-            Ani-Remote-Play-Integration-Diagnostic-SAFE.zip
-            Ani-Games-Ready-Host-Agent-Windows-x64-SAFE.zip
+          path: work/package/**
           if-no-files-found: error
           retention-days: 14
