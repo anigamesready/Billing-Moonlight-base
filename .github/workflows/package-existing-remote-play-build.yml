@@ -50,6 +50,53 @@ jobs:
           test -s host-agent/install-host-agent-safe.ps1
           cp host-agent/install-host-agent-safe.ps1 work/host/install-host-agent.ps1
           rm -f work/host/install-host-agent-safe.ps1
+          cat > work/host/README.md <<'EOF'
+          # Ani Games Ready Host Agent — Safe installer package
+
+          Paket ini memakai ulang EXE Host Agent yang sudah berhasil dibuild pada 21 November 2026.
+          APK Ani Moonlight juga dipakai ulang dari build yang sama. Tidak ada build ulang Moonlight atau Host Agent EXE pada proses packaging ini.
+
+          ## Kebutuhan PC Windows
+          - Windows 10/11 x64 dan PowerShell Run as Administrator.
+          - Sunshine x64 terpasang dan sudah dibuka minimal sekali untuk membuat akun Web UI.
+          - Cloudflare One Client/WARP terpasang, login ke organisasi yang sama dengan HP:
+            team name: `anigamesready-remoteplay`.
+          - PC sudah terdaftar sebagai device di Ani Games Ready DB Android.
+          - Admin sudah mengaktifkan izin Host Remote Play PC ini dan menerbitkan kode enrollment sekali pakai dari menu Admin > Remote Play.
+
+          ## Pemasangan
+          1. Install Sunshine MSI yang disediakan terpisah, lalu buka Sunshine lokal untuk menyelesaikan setup akun Web UI.
+          2. Install Cloudflare One Client pada PC dan login ke organisasi `anigamesready-remoteplay`. Pastikan status WARP/Cloudflare One Connected.
+          3. Ekstrak semua isi ZIP ini ke folder lokal tetap, misalnya `C:\\AniGamesReady\\HostAgent`. Jangan menjalankan EXE dari dalam ZIP.
+          4. Dari folder tersebut buka PowerShell sebagai Administrator.
+          5. Jalankan: `Set-ExecutionPolicy -Scope Process Bypass -Force; .\\install-host-agent.ps1`
+          6. Masukkan kode enrollment 64 karakter dari Admin saat diminta. Kode hanya sekali pakai dan berlaku 15 menit.
+          7. Service Host Agent berjalan sebagai Windows Service. Kode enrollment ditukar dengan token Host Agent tersendiri; token disimpan dengan DPAPI LocalMachine.
+
+          ## Dampak terhadap konfigurasi yang sudah ada
+          - Installer tidak menghapus/membuat ulang service Host Agent yang sudah dikenal.
+          - Token Host Agent yang sudah enrolled dan dapat dibaca akan dipertahankan.
+          - File config dan EXE lama dibackup sebelum diganti.
+          - Installer hanya mengganti tiga Windows Firewall rules dengan nama Ani Remote Play. Rule Sunshine lain yang sudah ada tidak diubah.
+          - Installer tidak merestart Sunshine secara otomatis. Bila `sunshine.conf` perlu ditambah `origin_web_ui_allowed = pc`, file dibackup dan disimpan; restart Sunshine manual saat tidak ada stream aktif agar aturan berlaku.
+          - Port Sunshine Web UI/API 47990 tidak dibuka ke Cloudflare Mesh dan tetap hanya diakses Host Agent melalui localhost.
+          - GameStream memerlukan Cloudflare Mesh TCP 47984,47989,48010 dan UDP 47998,47999,48000,48002,48010 dari range 100.96.0.0/12.
+
+          ## Sambungkan HP Android
+          - Install Ani Moonlight APK dari folder `android` pada paket integrasi.
+          - Install Cloudflare One Client pada HP, login ke organisasi `anigamesready-remoteplay`, setujui profil VPN Android, dan pastikan Connected.
+          - Di Admin > Remote Play, aktifkan izin rental yang akan dipakai dan terbitkan kode aktivasi 16 karakter. Menerbitkan ulang kode akan mencabut kode lama dan sesi Remote Play klien sebelumnya.
+          - Buka Ani Moonlight, masukkan ID rental dan kode aktivasi, lalu Refresh dashboard.
+
+          ## DB Android dan status koneksi
+          - Control-plane memakai gateway HTTPS DB Android: `https://ani-games-db-android-stage-gateway.anigamesready.workers.dev`.
+          - Redmi/Termux harus tetap menjalankan `start-online-proot.sh`; Quick Tunnel mengarah ke DB staging pada port 8788.
+          - Gateway Worker membawa JSON/API saja, bukan video/audio.
+          - Admin > Remote Play harus menunjukkan Host Agent online dan Sunshine ready. Di HP, PC harus muncul tersedia sebelum tombol Hubungkan aktif.
+
+          ## Status pengujian
+          Build source, parser PowerShell, kontrak firewall, dan smoke test konfigurasi Host Agent lulus CI. Paket ini tetap berstatus DIAGNOSTIC/INTEGRATION TEST: belum ada pengujian nyata end-to-end dari HP ke PC untuk Cloudflare Mesh TCP/UDP dan stream Sunshine. Jangan gunakan untuk menyewakan akses pelanggan sebelum tes stream nyata berhasil.
+          EOF
           cat > work/host/INSTALLER-SAFETY.txt <<'EOF'
           This package reuses the Host Agent EXE from the successful 2026-11-21 CI build.
           Only install-host-agent.ps1 was replaced with the additive, non-destructive installer.
