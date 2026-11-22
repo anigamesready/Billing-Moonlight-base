@@ -1,0 +1,74 @@
+name: Test additive Ani Host Agent installer
+
+on:
+  push:
+    branches:
+      - feature/ani-remote-play-safe-host-install-layer-v0.1
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  safe-installer:
+    name: Parse and audit non-destructive Windows installer
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+
+      - name: Parse PowerShell installer
+        shell: pwsh
+        run: |
+          $file = Resolve-Path .\host-agent\install-host-agent-safe.ps1
+          $tokens = $null
+          $errors = $null
+          [System.Management.Automation.Language.Parser]::ParseFile($file, [ref]$tokens, [ref]$errors) | Out-Null
+          if ($errors.Count -gt 0) {
+            $errors | ForEach-Object { Write-Error $_.Message }
+            throw "Safe Host Agent installer has PowerShell syntax errors."
+          }
+
+      - name: Enforce additive-only behavior and Mesh port scope
+        shell: pwsh
+        run: |
+          $script = Get-Content .\host-agent\install-host-agent-safe.ps1 -Raw
+          $required = @(
+            "ProgramData\AniGamesReady\HostAgent",
+            "HostTokenProtected",
+            "Enrolled",
+            "100.96.0.0/12",
+            "47984,47989,48010",
+            "47998,47999,48000,48002,48010",
+            "47990",
+            "Backup-File",
+            "remote_play"
+          )
+          foreach ($value in $required) {
+            if (-not $script.Contains($value)) { throw "Missing required safe-installer contract: $value" }
+          }
+          $forbidden = @(
+            "sc.exe delete",
+            "Stop-Process",
+            "Set-NetFirewallAddressFilter",
+            "Restart-Service",
+            "initdb",
+            "pg_upgrade",
+            "Remove-Item -Recurse"
+          )
+          foreach ($value in $forbidden) {
+            if ($script.Contains($value)) { throw "Unsafe operation found in additive installer: $value" }
+          }
+          if (-not $script.Contains('Get-NetFirewallRule -DisplayName $display')) {
+            throw "Firewall replacement must be scoped to Ani-owned rule names only."
+          }
+          if (-not $script.Contains('Stop-Safe "Service bernama $serviceName')) {
+            throw "Existing unrelated service-name collision must fail closed."
+          }
+
+      - name: Run Host Agent Mesh configuration smoke tests
+        shell: pwsh
+        run: |
+          dotnet run --project .\host-agent\tests\ConfigSmoke.csproj --configuration Release
+          Remove-Item .\host-agent\tests\bin, .\host-agent\tests\obj -Recurse -Force -ErrorAction SilentlyContinue
