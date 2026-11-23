@@ -52,7 +52,7 @@ for token in ("VpnService.prepare(this)", "REQUEST_MEDIA_VPN_PERMISSION",
         raise SystemExit("Embedded single-app media tunnel flow is missing: " + token)
 for token in ("com.wireguard.android.backend.GoBackend", "KeyPair()",
               "wireguard_client_private_key", "AllowedIPs = ",
-              "hostAddress + \"/32\"", "PersistentKeepalive = 25",
+              ".append(hostAddress)", ".append(\"/32", "PersistentKeepalive = 25",
               "AniSecurePrefs.saveSecretValue", "AniSecurePrefs.getSecretValue"):
     if token not in tunnel:
         raise SystemExit("Embedded WireGuard isolation/key handling is missing: " + token)
