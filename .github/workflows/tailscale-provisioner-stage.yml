@@ -1,0 +1,27 @@
+name: Tailscale Provisioner Stage Tests
+
+on:
+  push:
+    branches:
+      - feature/ani-tailscale-provisioner-stage-v0.1
+    paths:
+      - "cloudflare/tailscale-provisioner/**"
+      - ".github/workflows/tailscale-provisioner-stage.yml"
+  pull_request:
+    branches:
+      - feature/ani-tailscale-provisioner-stage-v0.1
+    paths:
+      - "cloudflare/tailscale-provisioner/**"
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: cloudflare/tailscale-provisioner
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm test
