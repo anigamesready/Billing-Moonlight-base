@@ -168,6 +168,14 @@ public final class AniRemoteApi {
         return authenticated(context, "remote_play_dashboard", new JSONObject());
     }
 
+    /** Register only the client public key; the private key never leaves Android Keystore. */
+    public static JSONObject registerClientTunnel(Context context) throws Exception {
+        JSONObject body = new JSONObject();
+        body.put("p_client_install_id", AniSecurePrefs.getClientId(context));
+        body.put("p_client_public_key", AniTunnelManager.getOrCreateClientPublicKey(context));
+        return authenticated(context, "remote_play_client_tunnel_register", body);
+    }
+
     public static JSONObject startSession(Context context, String hostDeviceId,
                                           String idempotencyKey) throws Exception {
         JSONObject body = new JSONObject();
@@ -247,7 +255,11 @@ public final class AniRemoteApi {
         body.put("p_session_id", sessionId);
         body.put("p_pin", pin);
         body.put("p_client_name", clientName);
-        body.put("p_client_address", getCloudflareMeshAddress());
+        String clientAddress = AniTunnelManager.getClientAddress(context);
+        if (clientAddress == null || clientAddress.isEmpty()) {
+            throw new ApiException(0, "REMOTE_PLAY_CLIENT_TUNNEL_NOT_CONNECTED");
+        }
+        body.put("p_client_address", clientAddress);
         return authenticated(context, "remote_play_pairing_prepare", body);
     }
 
