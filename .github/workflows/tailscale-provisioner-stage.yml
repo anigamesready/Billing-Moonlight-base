@@ -3,7 +3,7 @@ name: Tailscale Provisioner Stage Tests
 on:
   push:
     branches:
-      - feature/ani-tailscale-provisioner-stage-v0.1
+      - feature/ani-remote-play-tailscale-embedded-v0.1
     paths:
       - "cloudflare/tailscale-provisioner/**"
       - ".github/workflows/tailscale-provisioner-stage.yml"
