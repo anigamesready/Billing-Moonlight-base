@@ -19,6 +19,8 @@ function constantTimeEqual(left, right) {
 async function requestOAuthToken(env, tag) {
   const form = new URLSearchParams({
     grant_type: "client_credentials",
+    client_id: env.TAILSCALE_OAUTH_CLIENT_ID,
+    client_secret: env.TAILSCALE_OAUTH_CLIENT_SECRET,
     scope: "auth_keys",
     tags: tag
   });
