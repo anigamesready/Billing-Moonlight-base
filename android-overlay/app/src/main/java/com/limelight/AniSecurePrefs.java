@@ -92,6 +92,26 @@ public final class AniSecurePrefs {
         return new String(cipher.doFinal(ciphertext), StandardCharsets.UTF_8);
     }
 
+    /** Generic Android-Keystore encrypted storage for device-bound tunnel private keys. */
+    public static void saveSecretValue(Context c, String key, String value) throws Exception {
+        if (key == null || !key.matches("[a-z0-9_]{3,64}") || value == null || value.length() > 4096)
+            throw new IllegalArgumentException("REMOTE_SECURE_VALUE_INVALID");
+        saveSecret(c, "secure_" + key, value);
+    }
+    public static String getSecretValue(Context c, String key) throws Exception {
+        if (key == null || !key.matches("[a-z0-9_]{3,64}"))
+            throw new IllegalArgumentException("REMOTE_SECURE_KEY_INVALID");
+        return getSecret(c, "secure_" + key);
+    }
+    public static void putLocalValue(Context c, String key, String value) {
+        if (key == null || !key.matches("[a-z0-9_]{3,64}")) throw new IllegalArgumentException("REMOTE_LOCAL_KEY_INVALID");
+        prefs(c).edit().putString(key, value == null ? "" : value).apply();
+    }
+    public static String getLocalValue(Context c, String key, String fallback) {
+        if (key == null || !key.matches("[a-z0-9_]{3,64}")) throw new IllegalArgumentException("REMOTE_LOCAL_KEY_INVALID");
+        return prefs(c).getString(key, fallback);
+    }
+
     public static void saveClientToken(Context c, String token) throws Exception {
         saveSecret(c, "client_token", token);
     }
