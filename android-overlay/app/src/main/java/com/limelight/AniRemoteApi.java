@@ -9,10 +9,6 @@ import java.io.OutputStream;
 import java.net.HttpURLConnection;
 import java.net.URI;
 import java.net.URL;
-import java.net.Inet4Address;
-import java.net.InetAddress;
-import java.net.NetworkInterface;
-import java.util.Enumeration;
 import java.nio.charset.StandardCharsets;
 import java.util.Locale;
 
@@ -224,31 +220,6 @@ public final class AniRemoteApi {
         return rpc("remote_play_end_session", body, clientToken);
     }
 
-    private static String getCloudflareMeshAddress() throws Exception {
-        Enumeration<NetworkInterface> interfaces = NetworkInterface.getNetworkInterfaces();
-        if (interfaces == null) throw new ApiException(0, "REMOTE_PLAY_MESH_ADDRESS_NOT_FOUND");
-        while (interfaces.hasMoreElements()) {
-            NetworkInterface network = interfaces.nextElement();
-            try {
-                if (!network.isUp() || network.isLoopback()) continue;
-                Enumeration<InetAddress> addresses = network.getInetAddresses();
-                while (addresses.hasMoreElements()) {
-                    InetAddress address = addresses.nextElement();
-                    if (!(address instanceof Inet4Address)) continue;
-                    String value = address.getHostAddress();
-                    String[] parts = value.split("\\.");
-                    if (parts.length != 4) continue;
-                    int a = Integer.parseInt(parts[0]);
-                    int b = Integer.parseInt(parts[1]);
-                    if (a == 100 && b >= 96 && b <= 111) return value;
-                }
-            } catch (Exception ignored) {
-                // Continue through interfaces; no interface means no trusted Mesh route.
-            }
-        }
-        throw new ApiException(0, "REMOTE_PLAY_MESH_ADDRESS_NOT_FOUND");
-    }
-
     public static JSONObject preparePairing(Context context, String sessionId,
                                             String pin, String clientName) throws Exception {
         JSONObject body = new JSONObject();
@@ -261,16 +232,6 @@ public final class AniRemoteApi {
         }
         body.put("p_client_address", clientAddress);
         return authenticated(context, "remote_play_pairing_prepare", body);
-    }
-
-    public static JSONObject preparePairing(String clientToken, String sessionId,
-                                            String pin, String clientName) throws Exception {
-        JSONObject body = new JSONObject();
-        body.put("p_session_id", sessionId);
-        body.put("p_pin", pin);
-        body.put("p_client_name", clientName);
-        body.put("p_client_address", getCloudflareMeshAddress());
-        return rpc("remote_play_pairing_prepare", body, clientToken);
     }
 
     /** Static merchant QRIS is bundled with the APK; no image server is required. */
