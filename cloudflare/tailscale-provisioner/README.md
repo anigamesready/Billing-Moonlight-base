@@ -39,4 +39,4 @@ After adding secrets, call `GET /health`; both configuration flags must be true.
 
 Ephemeral nodes are removed after going offline, but removal is not guaranteed to be instantaneous. Revoking an auth key does not deauthorize a node already enrolled; immediate device removal requires the separate Tailscale device-management permission (`devices:core`) and device deletion. This Worker intentionally does not perform device deletion.
 
-Commercial/rental distribution using embedded Tailscale needs separate licensing/approval review before production rollout.
+**Production licensing gate:** the Tailscale Terms of Service last updated August 25, 2026 restrict commercial exploitation and renting or leasing use of the Tailscale Solution. Because Ani Games Ready is a paid rental/remote-play service, do not launch this embedded Tailscale design for customers until Tailscale confirms in writing that the intended use is permitted or provides an appropriate commercial agreement. Technical key issuance does not establish licensing permission.
