@@ -259,10 +259,10 @@ public class AniDashboardActivity extends Activity {
         String specs="";
         if(!cpu.isEmpty()) specs += cpu;
         if(!gpu.isEmpty()) specs += (specs.isEmpty()?"":" · ")+gpu;
-        String mediaAddress=host.optString("media_address","");
-        String networkStatus=isCloudflareMeshAddress(mediaAddress)
-            ?"Jalur privat: Cloudflare Mesh"
-            :(host.optBoolean("media_path_ready",false)?"Jalur privat tersedia":"Jalur media belum siap");
+        // Display only the server's verified media-route readiness. Customer
+        // UI deliberately does not reveal or depend on operator Cloudflare Mesh.
+        String networkStatus=host.optBoolean("media_path_ready",false)
+            ?"Jalur media siap":"Jalur media belum siap";
         TextView detail=normalText((specs.isEmpty()?"Host Agent: "+host.optString("host_agent_version","terdaftar"):specs)+" • "+networkStatus);
         detail.setPadding(0,dp(8),0,dp(12));
         item.addView(detail);
