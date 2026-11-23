@@ -10,6 +10,7 @@ import android.graphics.Color;
 import android.graphics.Typeface;
 import android.graphics.drawable.GradientDrawable;
 import android.net.Uri;
+import android.net.VpnService;
 import android.os.Bundle;
 import android.os.IBinder;
 import android.view.Gravity;
@@ -41,6 +42,8 @@ public class AniDashboardActivity extends Activity {
     private boolean busy=false;
     private boolean expiredPopupShown=false;
     private String currentCode="";
+    private static final int REQUEST_MEDIA_VPN_PERMISSION=9173;
+    private JSONObject pendingHost;
 
     @Override protected void onCreate(Bundle state) {
         super.onCreate(state);
@@ -125,26 +128,6 @@ public class AniDashboardActivity extends Activity {
         actions.addView(refreshButton,refreshParams);
         content.addView(actions);
 
-        LinearLayout meshCard=card();
-        meshCard.setOrientation(LinearLayout.VERTICAL);
-        meshCard.setPadding(dp(14),dp(12),dp(14),dp(12));
-        TextView meshTitle=label("KONEKSI PRIVAT");
-        meshTitle.setTextColor(Color.rgb(91,230,183));
-        meshCard.addView(meshTitle);
-        TextView meshDescription=normalText(
-            "PC Remote Play memakai Cloudflare Mesh. HP harus sudah terhubung ke organisasi Cloudflare One yang sama dengan PC Host sebelum menekan HUBUNGKAN PC."
-        );
-        meshDescription.setPadding(0,dp(6),0,dp(8));
-        meshCard.addView(meshDescription);
-        Button meshButton=new Button(this);
-        meshButton.setText("BUKA / PASANG CLOUDFLARE ONE");
-        meshButton.setTextColor(Color.WHITE);
-        meshButton.setBackground(rounded(Color.rgb(35,55,80),10));
-        meshButton.setOnClickListener(v->openCloudflareOne());
-        meshCard.addView(meshButton,new LinearLayout.LayoutParams(-1,dp(42)));
-        LinearLayout.LayoutParams meshParams=new LinearLayout.LayoutParams(-1,-2);
-        meshParams.topMargin=dp(12);
-        content.addView(meshCard,meshParams);
 
         TextView pcTitle=new TextView(this);
         pcTitle.setText("PILIH PC GAMING");
@@ -297,14 +280,13 @@ public class AniDashboardActivity extends Activity {
 
     private void connect(JSONObject host) {
         if(busy) return;
-        String advertisedMediaAddress=host.optString("media_address","");
-        if(isCloudflareMeshAddress(advertisedMediaAddress) && !hasCloudflareMeshAddress()) {
-            new AlertDialog.Builder(this)
-                .setTitle("Cloudflare One belum tersambung")
-                .setMessage("PC menggunakan Cloudflare Mesh, tetapi HP belum memiliki alamat Mesh 100.96.x.x. Buka Cloudflare One Agent, masuk ke organisasi yang sama, aktifkan koneksi VPN, lalu kembali ke Ani Moonlight dan tekan Refresh.")
-                .setPositiveButton("Buka Cloudflare One",(d,w)->openCloudflareOne())
-                .setNegativeButton("Nanti",null)
-                .show();
+        // The first Android system VPN-consent prompt is for the tunnel embedded
+        // in Ani Moonlight itself; renters do not install or enroll a second app.
+        Intent vpnPermission=VpnService.prepare(this);
+        if(vpnPermission!=null) {
+            pendingHost=host;
+            messageText.setText("Izinkan koneksi aman Ani Moonlight satu kali untuk melanjutkan.");
+            startActivityForResult(vpnPermission,REQUEST_MEDIA_VPN_PERMISSION);
             return;
         }
         String hostId=host.optString("device_id","");
@@ -319,11 +301,20 @@ public class AniDashboardActivity extends Activity {
                 token=AniSecurePrefs.getClientToken(this);
                 started=AniRemoteApi.startSession(this,hostId,UUID.randomUUID().toString());
                 String sessionId=started.optString("session_id","");
-                String address=started.optString("media_address","");
+                JSONObject mediaTunnel=started.optJSONObject("media_tunnel");
                 int port=started.optInt("media_port",47989);
-                if(sessionId.isEmpty() || address.isEmpty()) {
-                    try { if(!sessionId.isEmpty()) AniRemoteApi.stopSession(this,sessionId,"host_route_unavailable"); } catch(Exception ignored) {}
-                    throw new Exception("HOST_AGENT_OR_ROUTE_NOT_READY");
+                if(sessionId.isEmpty() || mediaTunnel==null) {
+                    try { if(!sessionId.isEmpty()) AniRemoteApi.stopSession(this,sessionId,"media_relay_not_ready"); } catch(Exception ignored) {}
+                    throw new Exception("REMOTE_PLAY_MEDIA_RELAY_NOT_READY");
+                }
+                // The relay grant is session-bound. The VPN routes only the selected
+                // Host /32 and never turns the phone into a member of the operator Mesh.
+                AniTunnelManager.connect(this,mediaTunnel);
+                String address=AniTunnelManager.getHostAddress(this);
+                if(address==null || address.isEmpty()) {
+                    try { AniTunnelManager.disconnect(this); } catch(Exception ignored) {}
+                    try { AniRemoteApi.stopSession(this,sessionId,"host_route_unavailable"); } catch(Exception ignored) {}
+                    throw new Exception("REMOTE_PLAY_TUNNEL_ROUTE_MISSING");
                 }
 
                 AniSecurePrefs.saveActiveSession(this,sessionId);
@@ -359,6 +350,7 @@ public class AniDashboardActivity extends Activity {
                     addHostAndOpen(name,finalAddress,port,finalToken,finalSessionId);
                 });
             } catch(Exception e) {
+                try { AniTunnelManager.disconnect(this); } catch(Exception ignored) {}
                 if(started!=null) {
                     String sid=started.optString("session_id","");
                     if(!sid.isEmpty() && !started.optBoolean("idempotent",false)) {
@@ -380,6 +372,17 @@ public class AniDashboardActivity extends Activity {
                 });
             }
         });
+    }
+
+    @Override
+    protected void onActivityResult(int requestCode,int resultCode,Intent data) {
+        super.onActivityResult(requestCode,resultCode,data);
+        if(requestCode==REQUEST_MEDIA_VPN_PERMISSION) {
+            JSONObject host=pendingHost;
+            pendingHost=null;
+            if(resultCode==RESULT_OK && host!=null) connect(host);
+            else if(messageText!=null) messageText.setText("Izin koneksi aman belum diberikan. PC belum dihubungkan.");
+        }
     }
 
     private void addHostAndOpen(String name,String address,int port,String token,String sessionId) {
