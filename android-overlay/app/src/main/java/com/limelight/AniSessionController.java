@@ -157,6 +157,7 @@ public final class AniSessionController {
             try {
                 AniRemoteApi.stopSession(activity, session, reason);
             } catch (Exception ignored) {}
+            finally { AniTunnelManager.disconnect(activity); }
             try {
                 AniSecurePrefs.clearActiveSession(activity);
             } catch (Exception ignored) {}
@@ -267,6 +268,7 @@ public final class AniSessionController {
             } catch (Exception ignored) {
                 // Keep the session id locally so the next dashboard start can retry.
             } finally {
+                AniTunnelManager.disconnect(activity);
                 postStopCompletion(activity, onComplete);
             }
         });
@@ -281,6 +283,7 @@ public final class AniSessionController {
         });
     }
     public static void recoverBeforeDashboard(Activity activity) {
+        AniTunnelManager.disconnect(activity);
         connecting = false;
         connectingDeadlineMillis = 0;
         running = false;
@@ -302,6 +305,7 @@ public final class AniSessionController {
     }
 
     private static void failClosed(Activity activity, String message) {
+        AniTunnelManager.disconnect(activity);
         running = false;
         MAIN.post(() -> {
             try {
