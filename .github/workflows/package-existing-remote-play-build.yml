@@ -1,0 +1,154 @@
+name: Package existing Ani Remote Play build with safe Host installer
+
+on:
+  push:
+    branches:
+      - feature/ani-remote-play-safe-host-install-layer-v0.1
+  workflow_dispatch:
+
+permissions:
+  actions: read
+  contents: read
+
+jobs:
+  package-existing-binaries:
+    name: Reuse existing APK and Host Agent binaries (no rebuild)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout additive installer layer
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+
+      - name: Download previously successful Android APK artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: ani-moonlight-android-diagnostic
+          path: source/android
+          repository: anigamesready/Billing-Moonlight-base
+          run-id: 44944003339
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Download previously successful Windows Host Agent artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: ani-games-ready-host-agent-win-x64-diagnostic
+          path: source/host
+          repository: anigamesready/Billing-Moonlight-base
+          run-id: 44944003339
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Replace only the unsafe installer in the existing Host Agent package
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -s source/android/Ani-Moonlight-Android-Diagnostic.apk
+          test -s source/host/Ani-Games-Ready-Host-Agent-win-x64-Diagnostic.zip
+          mkdir -p work/host work/package/android
+          unzip -q source/host/Ani-Games-Ready-Host-Agent-win-x64-Diagnostic.zip -d work/host
+          test -s work/host/AniGamesReady.HostAgent.exe
+          test -s host-agent/install-host-agent-safe.ps1
+          cp host-agent/install-host-agent-safe.ps1 work/host/install-host-agent.ps1
+          rm -f work/host/install-host-agent-safe.ps1
+          cat > work/host/README.md <<'EOF'
+          # Ani Games Ready Host Agent — Safe installer package
+
+          Paket ini memakai ulang EXE Host Agent yang sudah berhasil dibuild pada 21 November 2026.
+          APK Ani Moonlight juga dipakai ulang dari build yang sama. Tidak ada build ulang Moonlight atau Host Agent EXE pada proses packaging ini.
+
+          ## Kebutuhan PC Windows
+          - Windows 10/11 x64 dan PowerShell Run as Administrator.
+          - Sunshine x64 terpasang dan sudah dibuka minimal sekali untuk membuat akun Web UI.
+          - Cloudflare One Client/WARP terpasang, login ke organisasi yang sama dengan HP:
+            team name: `anigamesready-remoteplay`.
+          - Di Cloudflare Zero Trust > Settings, aktifkan **Allow all Cloudflare One traffic to reach enrolled devices**.
+          - Di device profile Mesh dan Android, gunakan Traffic and DNS mode. Route `100.96.0.0/12` melalui Cloudflare
+            (Include mode: tambahkan range tersebut; Exclude mode: pastikan range itu dan parent `100.64.0.0/10` tidak dikecualikan).
+          - Akun Cloudflare sudah memiliki unique virtual IP dan TCP/UDP Gateway proxy aktif; perangkat belum ter-enroll.
+          - PC sudah terdaftar sebagai device di Ani Games Ready DB Android.
+          - Admin sudah mengaktifkan izin Host Remote Play PC ini dan menerbitkan kode enrollment sekali pakai dari menu Admin > Remote Play.
+
+          ## Pemasangan
+          1. Install Sunshine MSI yang disediakan terpisah, lalu buka Sunshine lokal untuk menyelesaikan setup akun Web UI.
+          2. Install Cloudflare One Client pada PC dan login ke organisasi `anigamesready-remoteplay`. Pastikan status WARP/Cloudflare One Connected.
+          3. Ekstrak semua isi ZIP ini ke folder lokal tetap, misalnya `C:\\AniGamesReady\\HostAgent`. Jangan menjalankan EXE dari dalam ZIP.
+          4. Dari folder tersebut buka PowerShell sebagai Administrator.
+          5. Jalankan: `Set-ExecutionPolicy -Scope Process Bypass -Force; .\\install-host-agent.ps1`
+          6. Masukkan kode enrollment 64 karakter dari Admin saat diminta. Kode hanya sekali pakai dan berlaku 15 menit.
+          7. Service Host Agent berjalan sebagai Windows Service. Kode enrollment ditukar dengan token Host Agent tersendiri; token disimpan dengan DPAPI LocalMachine.
+
+          ## Dampak terhadap konfigurasi yang sudah ada
+          - Installer tidak menghapus/membuat ulang service Host Agent yang sudah dikenal.
+          - Token Host Agent yang sudah enrolled dan dapat dibaca akan dipertahankan.
+          - File config dan EXE lama dibackup sebelum diganti.
+          - Installer hanya mengganti tiga Windows Firewall rules dengan nama Ani Remote Play. Rule Sunshine lain yang sudah ada tidak diubah.
+          - Installer tidak merestart Sunshine secara otomatis. Bila `sunshine.conf` perlu ditambah `origin_web_ui_allowed = pc`, file dibackup dan disimpan; restart Sunshine manual saat tidak ada stream aktif agar aturan berlaku.
+          - Port Sunshine Web UI/API 47990 tidak dibuka ke Cloudflare Mesh dan tetap hanya diakses Host Agent melalui localhost.
+          - GameStream memerlukan Cloudflare Mesh TCP 47984,47989,48010 dan UDP 47998,47999,48000,48002,48010 dari range 100.96.0.0/12.
+
+          ## Sambungkan HP Android
+          - Install Ani Moonlight APK dari folder `android` pada paket integrasi.
+          - Install Cloudflare One Client pada HP, login ke organisasi `anigamesready-remoteplay`, setujui profil VPN Android, dan pastikan Connected.
+          - Di Admin > Remote Play, aktifkan izin rental yang akan dipakai dan terbitkan kode aktivasi 16 karakter. Menerbitkan ulang kode akan mencabut kode lama dan sesi Remote Play klien sebelumnya.
+          - Buka Ani Moonlight, masukkan ID rental dan kode aktivasi, lalu Refresh dashboard.
+
+          ## DB Android dan status koneksi
+          - Control-plane memakai gateway HTTPS DB Android: `https://ani-games-db-android-stage-gateway.anigamesready.workers.dev`.
+          - Redmi/Termux harus tetap menjalankan `start-online-proot.sh`; Quick Tunnel mengarah ke DB staging pada port 8788.
+          - Gateway Worker membawa JSON/API saja, bukan video/audio.
+          - Admin > Remote Play harus menunjukkan Host Agent online dan Sunshine ready. Di HP, PC harus muncul tersedia sebelum tombol Hubungkan aktif.
+
+          ## Status pengujian
+          Build source, parser PowerShell, kontrak firewall, dan smoke test konfigurasi Host Agent lulus CI. Paket ini tetap berstatus DIAGNOSTIC/INTEGRATION TEST: belum ada pengujian nyata end-to-end dari HP ke PC untuk Cloudflare Mesh TCP/UDP dan stream Sunshine. Jangan gunakan untuk menyewakan akses pelanggan sebelum tes stream nyata berhasil.
+          EOF
+          cat > work/host/INSTALLER-SAFETY.txt <<'EOF'
+          This package reuses the Host Agent EXE from the successful 2026-11-21 CI build.
+          Only install-host-agent.ps1 was replaced with the additive, non-destructive installer.
+          The installer does not delete/recreate an existing Host Agent service, does not edit
+          existing Sunshine application firewall rules, and does not restart Sunshine.
+          Existing enrolled Host Agent token is preserved when the existing config is valid.
+          EOF
+          (cd work/host && zip -qr ../../Ani-Games-Ready-Host-Agent-Windows-x64-SAFE.zip .)
+
+          cp source/android/Ani-Moonlight-Android-Diagnostic.apk work/package/android/
+          cp source/android/BUILD-STATUS.txt work/package/android/ 2>/dev/null || true
+          cp source/android/ENDPOINT-STATUS.txt work/package/android/ 2>/dev/null || true
+          cp Ani-Games-Ready-Host-Agent-Windows-x64-SAFE.zip work/package/
+          cat > work/package/BUILD-PROVENANCE.txt <<EOF
+          Ani Games Ready Remote Play integration test package
+          Existing Android APK artifact: run 44944003339 / artifact 14723175196
+          Existing Windows Host Agent artifact: run 44944003339 / artifact 14723185457
+          Source build commit: e63c649d097e997af6cb56e988d9ee9c308e0607
+          Installer-only layer branch: feature/ani-remote-play-safe-host-install-layer-v0.1
+          Installer audit commit: ${GITHUB_SHA}
+          No Android APK build was run in this workflow.
+          No Host Agent EXE compilation/publish was run in this workflow.
+          Only the Host Agent PowerShell installer was replaced with the safe additive installer.
+          This remains a DIAGNOSTIC / INTEGRATION TEST package, not a production release.
+          Real Cloudflare Mesh enrollment and TCP/UDP Sunshine stream are still required for E2E sign-off.
+          EOF
+          (cd work/package && find . -type f -print0 | sort -z | xargs -0 sha256sum > SHA256SUMS.txt)
+
+      - name: Verify reused binary identity and package contents
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p verify/host
+          test -s work/package/android/Ani-Moonlight-Android-Diagnostic.apk
+          test -s work/package/Ani-Games-Ready-Host-Agent-Windows-x64-SAFE.zip
+          unzip -q work/package/Ani-Games-Ready-Host-Agent-Windows-x64-SAFE.zip -d verify/host
+          test -s verify/host/AniGamesReady.HostAgent.exe
+          test -s verify/host/install-host-agent.ps1
+          ! grep -qi 'sc.exe delete' verify/host/install-host-agent.ps1
+          ! grep -qi 'Set-NetFirewallAddressFilter' verify/host/install-host-agent.ps1
+          ! grep -qi 'Restart-Service' verify/host/install-host-agent.ps1
+          echo "0b63cee0bc835aaec58027517e84fc20c89690881f4f1605bda0543e922473a3  work/package/android/Ani-Moonlight-Android-Diagnostic.apk" | sha256sum -c -
+          echo "c4392fdbd01f7a71641c904aa479c4bda9ce726b8846db8d554603c6aafc5ff0  verify/host/AniGamesReady.HostAgent.exe" | sha256sum -c -
+
+      - name: Upload safe integration diagnostic package
+        uses: actions/upload-artifact@v4
+        with:
+          name: ani-remote-play-integration-diagnostic-safe
+          path: work/package/**
+          if-no-files-found: error
+          retention-days: 14

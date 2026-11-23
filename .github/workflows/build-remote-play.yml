@@ -1,0 +1,225 @@
+name: Build Ani Games Ready Remote Play
+
+on:
+  push:
+    branches:
+      - feature/ani-remote-play-db-android-v0.2
+      - feature/ani-remote-play-cloudflare-mesh-v0.3
+      - feature/ani-single-app-embedded-relay-v0.1
+  pull_request:
+    branches:
+      - main
+    paths:
+      - "android-overlay/**"
+      - "host-agent/**"
+      - "scripts/**"
+      - ".github/workflows/build-remote-play.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  source-contract:
+    name: Static source and security contract checks
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Run static checks
+        run: |
+          python -m py_compile scripts/apply_android_overlay.py scripts/check_remote_play_contract.py
+          python scripts/check_remote_play_contract.py
+
+  android:
+    name: Build Ani Moonlight Android diagnostic APK
+    runs-on: ubuntu-latest
+    needs: source-contract
+    env:
+      # Staging-only default; repository variable may override it for a reviewed endpoint.
+      DB_ANDROID_API_BASE_URL: ${{ vars.DB_ANDROID_API_BASE_URL || 'https://ani-games-db-android-stage-gateway.anigamesready.workers.dev' }}
+    steps:
+      - name: Checkout Ani integration source
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+
+      - name: Checkout pinned upstream Moonlight Android
+        uses: actions/checkout@v4
+        with:
+          repository: moonlight-stream/moonlight-android
+          ref: b48494cb96bff23d8886c4775cc4f39a1075495d
+          path: upstream
+          submodules: recursive
+          fetch-depth: 0
+
+      - name: Set up Java 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+        with:
+          packages: platform-tools
+
+      - name: Install Android platform and pinned NDK
+        shell: bash
+        run: |
+          # setup-android already accepted SDK licenses. Do not pipe "yes":
+          # sdkmanager may exit early after licenses are accepted, causing SIGPIPE.
+          # The pinned Moonlight v12.2 source uses Android 17 (API 37) APIs.
+          # Install the Cinnamon Bun preview platform and matching Build Tools.
+          sdkmanager --channel=3 "platform-tools" "platforms;android-37.0" "build-tools;37.0.0" "ndk;29.0.14206865"
+
+      - name: Validate and apply Ani overlay
+        shell: bash
+        run: |
+          python -m py_compile scripts/apply_android_overlay.py
+          python scripts/apply_android_overlay.py --upstream upstream --overlay android-overlay
+          test -f upstream/app/src/main/java/com/limelight/AniLoginActivity.java
+          test -f upstream/app/src/main/java/com/limelight/AniDashboardActivity.java
+          test -f upstream/app/src/main/java/com/limelight/AniSessionController.java
+          test -f upstream/app/src/main/java/com/limelight/AniTunnelManager.java
+          grep -q 'com.wireguard.android:tunnel:1.0.20260102' upstream/app/build.gradle
+          grep -q 'minSdk 24' upstream/app/build.gradle
+          grep -q 'DB_ANDROID_API_BASE_URL' upstream/app/build.gradle
+          ! grep -RniE 'com.cloudflare.cloudflareoneagent|hasCloudflareMeshAddress|100.96.x.x' upstream/app/src/main/java/com/limelight/Ani*.java
+          ! grep -RniE 'supabase\.co|wzkjpycjizexxcxrfdvr' upstream/app/src/main/java/com/limelight/Ani*.java
+          python - <<'PY'
+          import xml.etree.ElementTree as ET
+          root = ET.parse("upstream/app/src/main/AndroidManifest.xml").getroot()
+          ns = "{http://schemas.android.com/apk/res/android}"
+          activities = {a.get(ns+"name"): a for a in root.findall("./application/activity")}
+          assert ".AniLoginActivity" in activities
+          assert any(i.find("category[@"+ns+"name='android.intent.category.LAUNCHER']") is not None
+                     for i in activities[".AniLoginActivity"].findall("intent-filter"))
+          assert activities[".PcView"].get(ns+"exported") == "false"
+          assert not any(i.find("category[@"+ns+"name='android.intent.category.LAUNCHER']") is not None
+                         for i in activities[".PcView"].findall("intent-filter"))
+          crypto = open("upstream/app/src/main/java/com/limelight/binding/crypto/AndroidCryptoProvider.java").read()
+          assert "import com.limelight.AniSecurePrefs;" in crypto
+          assert "AniSecurePrefs.getClientName(appContext)" in crypto
+          PY
+
+      - name: Build Android APK
+        working-directory: upstream
+        shell: bash
+        run: |
+          chmod +x ./gradlew
+          ./gradlew --no-daemon --stacktrace clean :app:assembleNonRootDebug
+
+      - name: Verify Android APK package
+        shell: bash
+        run: |
+          APK="$(find upstream/app/build/outputs/apk/nonRoot/debug -maxdepth 1 -name '*.apk' -print -quit)"
+          test -n "$APK"
+          mkdir -p dist/android
+          cp "$APK" dist/android/Ani-Moonlight-Android-Diagnostic.apk
+          "$ANDROID_HOME/build-tools/37.0.0/aapt" dump badging dist/android/Ani-Moonlight-Android-Diagnostic.apk | grep "package: name='id.anigamesready.moonlight.debug'"
+          if [ -n "$DB_ANDROID_API_BASE_URL" ]; then
+            echo "A stable HTTPS DB Android gateway is configured in this staging build. Live API health and Remote Play login still require the stage Termux API tunnel to be online." > dist/android/ENDPOINT-STATUS.txt
+          else
+            echo "No endpoint was supplied. This diagnostic APK will refuse login until the existing DB Android endpoint is configured." > dist/android/ENDPOINT-STATUS.txt
+          fi
+          cat > dist/android/BUILD-STATUS.txt <<'EOF'
+          DIAGNOSTIC BUILD ONLY — NOT A CUSTOMER RELEASE.
+          The embedded WireGuard client is compiled into this APK, but the public
+          media relay, DB peer registration/grants, Windows Host Agent tunnel,
+          Sunshine pairing persistence and GameStream TCP/UDP path are not yet
+          verified end-to-end. This APK is for diagnostic testing only.
+          EOF
+          sha256sum dist/android/Ani-Moonlight-Android-Diagnostic.apk | tee dist/android/SHA256SUMS.txt
+
+      - name: Upload Android diagnostic APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: ani-moonlight-android-diagnostic
+          path: dist/android/*
+          if-no-files-found: error
+          retention-days: 14
+
+  windows-host-agent:
+    name: Build Ani Remote Windows Host Agent diagnostic package
+    runs-on: windows-latest
+    needs: source-contract
+    steps:
+      - name: Checkout Ani integration source
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+
+      - name: Set up .NET 8
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.0.x"
+
+      - name: Parse Host Agent installer and enforce firewall scope
+        shell: pwsh
+        run: |
+          $tokens = $null
+          $errors = $null
+          [System.Management.Automation.Language.Parser]::ParseFile(
+            (Resolve-Path .\\host-agent\\install-host-agent.ps1),
+            [ref]$tokens,
+            [ref]$errors
+          ) | Out-Null
+          if ($errors.Count -gt 0) {
+            $errors | ForEach-Object { Write-Error $_.Message }
+            throw "Host Agent installer has PowerShell syntax errors."
+          }
+          $installer = Get-Content .\\host-agent\\install-host-agent.ps1 -Raw
+          foreach ($token in @("100.96.0.0/12", "Cloudflare Mesh TCP", "Cloudflare Mesh UDP", "47984", "47989", "48010", "47998", "47999", "48000", "48002", "47990")) {
+            if (-not $installer.Contains($token)) { throw "Missing required firewall token: $token" }
+          }
+
+      - name: Test Cloudflare Mesh Host Agent runtime configuration
+        shell: pwsh
+        run: |
+          dotnet run --project .\\host-agent\\tests\\ConfigSmoke.csproj --configuration Release
+
+      - name: Build Windows Host Agent
+        shell: pwsh
+        run: |
+          # ConfigSmoke builds the referenced service and writes test-only build files
+          # below host-agent/tests. Keep those files out of the customer package.
+          Remove-Item .\host-agent\tests\bin, .\host-agent\tests\obj -Recurse -Force -ErrorAction SilentlyContinue
+          dotnet publish .\host-agent\AniGamesReady.HostAgent.csproj --configuration Release --runtime win-x64 --self-contained true --output .\dist\host-agent
+          if (-not (Test-Path .\dist\host-agent\AniGamesReady.HostAgent.exe)) { throw "Host Agent EXE was not produced." }
+
+      - name: Assemble Host Agent diagnostic package
+        shell: pwsh
+        run: |
+          Copy-Item .\host-agent\install-host-agent.ps1 .\dist\host-agent\
+          Copy-Item .\host-agent\README.md .\dist\host-agent\
+          Remove-Item .\dist\host-agent\*.pdb -Force -ErrorAction SilentlyContinue
+          $unexpected = Get-ChildItem .\dist\host-agent -Recurse -Force | Where-Object {
+            $_.FullName -match '[\\/]tests([\\/]|$)' -or $_.Extension -eq '.pdb' -or $_.Extension -eq '.pyc'
+          }
+          if ($unexpected) { throw "Unexpected smoke-test/debug files in Host Agent publish output: $($unexpected.FullName -join ', ')" }
+          @"
+          DIAGNOSTIC BUILD ONLY — NOT A CUSTOMER RELEASE.
+          The DB Android Remote Play RPCs and real Cloudflare Mesh GameStream TCP/UDP path
+          have not passed end-to-end tests. Do not deploy to live rental PCs.
+          "@ | Set-Content -Encoding UTF8 .\dist\host-agent\BUILD-STATUS.txt
+          Compress-Archive -Path .\dist\host-agent\* -DestinationPath .\dist\Ani-Games-Ready-Host-Agent-win-x64-Diagnostic.zip -Force
+          Get-FileHash .\dist\Ani-Games-Ready-Host-Agent-win-x64-Diagnostic.zip -Algorithm SHA256 | Format-List | Out-File .\dist\Host-Agent-SHA256.txt
+
+      - name: Upload Windows Host Agent diagnostic package
+        uses: actions/upload-artifact@v4
+        with:
+          name: ani-games-ready-host-agent-win-x64-diagnostic
+          path: |
+            dist/Ani-Games-Ready-Host-Agent-win-x64-Diagnostic.zip
+            dist/Host-Agent-SHA256.txt
+          if-no-files-found: error
+          retention-days: 14
