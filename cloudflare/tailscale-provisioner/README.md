@@ -1,6 +1,6 @@
 # Ani Games Ready — Tailscale Provisioner (Stage)
 
-Isolated Cloudflare Worker for issuing one-time Tailscale auth keys to Ani client and host enrollments. This is staging-only; it does not modify the existing Android DB gateway or media path.
+Isolated Cloudflare Worker for issuing one-time Tailscale auth keys to Ani client and host enrollments. This is staging scaffolding; it does not modify the existing Android DB gateway or media path.
 
 ## Endpoints
 
@@ -25,6 +25,10 @@ Set these through Cloudflare Worker Settings → Variables and Secrets. Never co
 
 The OAuth credential must have the `auth_keys` scope and be allowed to issue the requested child tags via the tailnet `tagOwners` policy.
 
+## Security integration gate
+
+This endpoint is intended for trusted backend-to-backend calls only. **Do not embed `ANI_PROVISIONER_API_TOKEN` in the Android APK, Moonlight client, or Windows Host Agent.** A bearer secret distributed inside an app can be extracted. Before exposing it to client workflows, integrate the caller with the Ani rental/session authorization service so only a verified, entitled session can request a short-lived key. That caller integration has not yet been completed.
+
 ## Deployment
 
 Deploy only this folder as a separate Worker named `ani-games-tailscale-provisioner-stage`. Keep the existing `ani-games-db-android-stage-gateway` unchanged. Do not add routes to the production billing gateway.
@@ -34,3 +38,5 @@ After adding secrets, call `GET /health`; both configuration flags must be true.
 ## Important limitations
 
 Ephemeral nodes are removed after going offline, but removal is not guaranteed to be instantaneous. Revoking an auth key does not deauthorize a node already enrolled; immediate device removal requires the separate Tailscale device-management permission (`devices:core`) and device deletion. This Worker intentionally does not perform device deletion.
+
+Commercial/rental distribution using embedded Tailscale needs separate licensing/approval review before production rollout.
