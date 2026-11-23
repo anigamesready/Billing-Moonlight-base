@@ -1,6 +1,8 @@
 # Embedded Tailscale Transport — Architecture Decision v0.1
 
-Status: **selected for an isolated proof-of-concept; not a release implementation yet**.
+Status: **BLOCKED — technical candidate only; do not implement for commercial rental use without written Tailscale commercial/OEM approval**.
+
+Important licensing review (2026-11-23): the Tailscale Personal plan is designated for non-commercial use, and Tailscale's terms restrict commercial exploitation/resale/rental of the service. Ani Games Ready is a paid rental product. Do not deploy this design using a personal/free tailnet or assume a standard paid business plan grants embedded OEM/resale rights. Obtain written confirmation from Tailscale for this specific embedded, customer-facing rental use first. Until then, use the separate Cloudflare WebRTC/TURN application-transport ADR as the preferred no-VPS prototype.
 
 This document changes the proposed media-network direction only. It does not change the DB Android quick settings, the existing HTTPS gateway, API ports, database selection, or production Billing service.
 
