@@ -24,14 +24,16 @@ if missing:
 def read(path: str) -> str:
     return (ROOT / path).read_text(encoding="utf-8")
 
-api = read(required[0])
-login = read(required[2])
-secure = read(required[1])
-controller = read(required[4])
-worker = read(required[6])
-config = read(required[5])
-installer = read(required[7])
-patcher = read(required[8])
+api = read("android-overlay/app/src/main/java/com/limelight/AniRemoteApi.java")
+login = read("android-overlay/app/src/main/java/com/limelight/AniLoginActivity.java")
+secure = read("android-overlay/app/src/main/java/com/limelight/AniSecurePrefs.java")
+controller = read("android-overlay/app/src/main/java/com/limelight/AniSessionController.java")
+tunnel = read("android-overlay/app/src/main/java/com/limelight/AniTunnelManager.java")
+dashboard = read("android-overlay/app/src/main/java/com/limelight/AniDashboardActivity.java")
+config = read("host-agent/HostAgentConfig.cs")
+worker = read("host-agent/HostAgentWorker.cs")
+installer = read("host-agent/install-host-agent.ps1")
+patcher = read("scripts/apply_android_overlay.py")
 
 for token in ("remote_play_login", "remote_play_refresh", "remote_play_dashboard", "remote_play_client_tunnel_register",
               "remote_play_request_session", "remote_play_session_heartbeat",
@@ -43,8 +45,6 @@ for token in ("remote_play_login", "remote_play_refresh", "remote_play_dashboard
 for token in ("USER ID RENTAL", "KODE AKTIVASI REMOTE PLAY", "AniRemoteApi.login"):
     if token not in login:
         raise SystemExit("Activation-code login incomplete: " + token)
-dashboard = read("android-overlay/app/src/main/java/com/limelight/AniDashboardActivity.java")
-tunnel = read("android-overlay/app/src/main/java/com/limelight/AniTunnelManager.java")
 for token in ("VpnService.prepare(this)", "REQUEST_MEDIA_VPN_PERMISSION",
               'optJSONObject("media_tunnel")', "AniTunnelManager.connect(this,mediaTunnel)",
               "AniTunnelManager.getHostAddress(this)", "REMOTE_PLAY_MEDIA_RELAY_NOT_READY"):
@@ -153,8 +153,8 @@ if "kode aktivasi" not in installer.lower() and "enrollment" not in installer.lo
 
 # No legacy Supabase function URL or project hostname may leak into runtime sources.
 runtime_sources = [
-    api, login, secure, read(required[3]), controller,
-    dashboard, config, worker, installer
+    api, login, secure, dashboard, controller, tunnel,
+    config, worker, installer
 ]
 for source in runtime_sources:
     lowered = source.lower()
