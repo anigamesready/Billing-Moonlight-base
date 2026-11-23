@@ -176,6 +176,7 @@ public class AniLoginActivity extends Activity {
         worker.execute(() -> {
             try {
                 JSONObject ignored = AniRemoteApi.listHosts(this);
+                try { AniRemoteApi.registerClientTunnel(this); } catch (Exception ignoredTunnel) {}
                 if (!destroyed) runOnUiThread(() -> openDashboard(AniSecurePrefs.getRentalCode(this)));
             } catch(Exception e) {
                 if (!destroyed) runOnUiThread(() -> {
@@ -200,6 +201,9 @@ public class AniLoginActivity extends Activity {
                     throw new IllegalStateException("REMOTE_PLAY_LOGIN_RESPONSE_INVALID");
                 AniSecurePrefs.saveTokenPair(this,accessToken,refreshToken);
                 AniSecurePrefs.setRentalCode(this,code);
+                // Best-effort public-key registration. Login/dashboard remain usable
+                // for account review when the media relay is not provisioned yet.
+                try { AniRemoteApi.registerClientTunnel(this); } catch (Exception ignored) {}
                 if (!destroyed) runOnUiThread(() -> openDashboard(code));
             } catch(Exception e) {
                 String error=e.getMessage()==null?"REMOTE_LOGIN_FAILED":e.getMessage();
