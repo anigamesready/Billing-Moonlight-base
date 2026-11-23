@@ -10,6 +10,7 @@ required = [
     "android-overlay/app/src/main/java/com/limelight/AniLoginActivity.java",
     "android-overlay/app/src/main/java/com/limelight/AniDashboardActivity.java",
     "android-overlay/app/src/main/java/com/limelight/AniSessionController.java",
+    "android-overlay/app/src/main/java/com/limelight/AniTunnelManager.java",
     "host-agent/HostAgentConfig.cs",
     "host-agent/HostAgentWorker.cs",
     "host-agent/install-host-agent.ps1",
@@ -32,7 +33,7 @@ config = read(required[5])
 installer = read(required[7])
 patcher = read(required[8])
 
-for token in ("remote_play_login", "remote_play_refresh", "remote_play_dashboard",
+for token in ("remote_play_login", "remote_play_refresh", "remote_play_dashboard", "remote_play_client_tunnel_register",
               "remote_play_request_session", "remote_play_session_heartbeat",
               "remote_play_end_session", "remote_play_pairing_prepare",
               "remote_play_session_connected"):
@@ -43,10 +44,20 @@ for token in ("USER ID RENTAL", "KODE AKTIVASI REMOTE PLAY", "AniRemoteApi.login
     if token not in login:
         raise SystemExit("Activation-code login incomplete: " + token)
 dashboard = read("android-overlay/app/src/main/java/com/limelight/AniDashboardActivity.java")
-for token in ("hasCloudflareMeshAddress()", "100.96.x.x",
-              "com.cloudflare.cloudflareoneagent", "media_address"):
+tunnel = read("android-overlay/app/src/main/java/com/limelight/AniTunnelManager.java")
+for token in ("VpnService.prepare(this)", "REQUEST_MEDIA_VPN_PERMISSION",
+              'optJSONObject("media_tunnel")', "AniTunnelManager.connect(this,mediaTunnel)",
+              "AniTunnelManager.getHostAddress(this)", "REMOTE_PLAY_MEDIA_RELAY_NOT_READY"):
     if token not in dashboard:
-        raise SystemExit("Android Cloudflare Mesh preflight is missing: " + token)
+        raise SystemExit("Embedded single-app media tunnel flow is missing: " + token)
+for token in ("com.wireguard.android.backend.GoBackend", "KeyPair()",
+              "wireguard_client_private_key", "AllowedIPs = ",
+              "hostAddress + \"/32\"", "PersistentKeepalive = 25",
+              "AniSecurePrefs.saveSecretValue", "AniSecurePrefs.getSecretValue"):
+    if token not in tunnel:
+        raise SystemExit("Embedded WireGuard isolation/key handling is missing: " + token)
+if "com.cloudflare.cloudflareoneagent" in dashboard or "100.96.x.x" in dashboard:
+    raise SystemExit("Customer dashboard must not require Cloudflare One or a Mesh address.")
 
 for token in ("AniSessionController.beginConnecting", "AniSessionController.isConnecting()"):
     if token not in dashboard:
@@ -113,6 +124,11 @@ for token in ("await base.StopAsync(cancellationToken)",
         raise SystemExit("Host Agent stop cleanup is incomplete: " + token)
 if "DB_ANDROID_API_BASE_URL" not in patcher or "supabase.co" not in patcher:
     raise SystemExit("Build-time DB Android endpoint validation is missing.")
+for token in ("com.wireguard.android:tunnel:1.0.20260102", "minSdk 24", "AniTunnelManager.java"):
+    if token not in patcher:
+        raise SystemExit("Embedded WireGuard build configuration is missing: " + token)
+if "com.cloudflare.cloudflareoneagent" in api or "getCloudflareMeshAddress" in api:
+    raise SystemExit("Ani customer API adapter must not depend on Cloudflare Mesh.");
 for token in ("origin_web_ui_allowed = pc", "sunshine.conf",
               ".ani-remote-play.bak", "Restart-Service -Name \"SunshineService\"",
               "WaitForStatus([System.ServiceProcess.ServiceControllerStatus]::Running"):
