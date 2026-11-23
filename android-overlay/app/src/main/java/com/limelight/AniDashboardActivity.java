@@ -425,55 +425,6 @@ public class AniDashboardActivity extends Activity {
         bindService(new Intent(this,ComputerManagerService.class),connectionRef[0],Context.BIND_AUTO_CREATE);
     }
 
-    private static boolean isCloudflareMeshAddress(String value) {
-        if(value==null || value.isEmpty()) return false;
-        String[] parts=value.split("\\.");
-        if(parts.length!=4) return false;
-        try {
-            int a=Integer.parseInt(parts[0]),b=Integer.parseInt(parts[1]);
-            int c=Integer.parseInt(parts[2]),d=Integer.parseInt(parts[3]);
-            return a==100 && b>=96 && b<=111 && c>=0 && c<=255 && d>=0 && d<=255;
-        } catch(NumberFormatException ignored) { return false; }
-    }
-
-    private boolean hasCloudflareMeshAddress() {
-        try {
-            Enumeration<NetworkInterface> interfaces=NetworkInterface.getNetworkInterfaces();
-            if(interfaces==null) return false;
-            while(interfaces.hasMoreElements()) {
-                NetworkInterface network=interfaces.nextElement();
-                try {
-                    if(!network.isUp() || network.isLoopback()) continue;
-                    Enumeration<InetAddress> addresses=network.getInetAddresses();
-                    while(addresses.hasMoreElements()) {
-                        InetAddress address=addresses.nextElement();
-                        if(address instanceof Inet4Address &&
-                           isCloudflareMeshAddress(address.getHostAddress())) return true;
-                    }
-                } catch(SocketException ignored) {}
-            }
-        } catch(SocketException ignored) {}
-        return false;
-    }
-
-    private void openCloudflareOne() {
-        try {
-            Intent installed=getPackageManager().getLaunchIntentForPackage("com.cloudflare.cloudflareoneagent");
-            if(installed!=null) {
-                startActivity(installed);
-                return;
-            }
-            Intent store=new Intent(Intent.ACTION_VIEW,
-                Uri.parse("https://play.google.com/store/apps/details?id=com.cloudflare.cloudflareoneagent"));
-            startActivity(store);
-        } catch(Exception e) {
-            new AlertDialog.Builder(this)
-                .setTitle("Cloudflare One Agent")
-                .setMessage("Pasang Cloudflare One Agent dari Google Play, lalu hubungkan ke organisasi Cloudflare yang sama dengan PC Host.")
-                .setPositiveButton("OK",null).show();
-        }
-    }
-
     private void showTopup() {
         JSONObject info = null;
         try { info = AniRemoteApi.topupInfo(this); } catch (Exception ignored) {}
