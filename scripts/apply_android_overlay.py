@@ -83,17 +83,7 @@ def main() -> None:
     if count != 1:
         raise RuntimeError("Could not inject DB Android API endpoint BuildConfig field")
     # WireGuard's official embeddable tunnel AAR requires Android API 24+.
-    gradle = re.sub(r'(?m)^\s*minSdk\s+21\s*$', '        minSdk 24', gradle, count=1)
-    if 'minSdk 24' not in gradle:
-        raise RuntimeError("minSdk patch failed for embedded WireGuard")
-    wireguard_dependency = "    implementation 'com.wireguard.android:tunnel:1.0.20260102'"
-    if wireguard_dependency not in gradle:
-        dependency_anchor = "    implementation 'com.squareup.okhttp3:okhttp:5.5.0'\n"
-        gradle = replace_once(gradle, dependency_anchor,
-                              dependency_anchor + wireguard_dependency + "\n",
-                              "embedded WireGuard tunnel dependency")
-    if gradle.count("com.wireguard.android:tunnel:1.0.20260102") != 1:
-        raise RuntimeError("Embedded WireGuard dependency must appear exactly once")
+    gradle = re.sub(r'(?m)^\s*minSdk\s+21\s*
     gradle, n = re.subn(
         r'(nonRoot\s*\{[\s\S]*?applicationId\s+)"com\\.limelight"',
         r'\1"id.anigamesready.moonlight"', gradle, count=1
@@ -332,9 +322,9 @@ if __name__ == "__main__":
         raise RuntimeError("minSdk patch failed for embedded WireGuard")
     wireguard_dependency = "    implementation 'com.wireguard.android:tunnel:1.0.20260102'"
     if wireguard_dependency not in gradle:
-        dependency_anchor = "    implementation 'com.squareup.okhttp3:okhttp:5.5.0'\\n"
+        dependency_anchor = "    implementation 'com.squareup.okhttp3:okhttp:5.5.0'\n"
         gradle = replace_once(gradle, dependency_anchor,
-                              dependency_anchor + wireguard_dependency + "\\n",
+                              dependency_anchor + wireguard_dependency + "\n",
                               "embedded WireGuard tunnel dependency")
     if gradle.count("com.wireguard.android:tunnel:1.0.20260102") != 1:
         raise RuntimeError("Embedded WireGuard dependency must appear exactly once")
